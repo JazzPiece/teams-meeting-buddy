@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Teams Transcript Exporter</title>
+  <link rel="stylesheet" href="styles/popup.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <img src="icons/icon48.png" alt="" class="logo">
+      <h1>Transcript Exporter</h1>
+    </header>
+
+    <div class="status-area">
+      <div id="status-icon" class="status-icon idle"></div>
+      <p id="status-text">Checking page...</p>
+    </div>
+
+    <div id="progress-area" class="progress-area hidden">
+      <div class="progress-bar">
+        <div id="progress-fill" class="progress-fill"></div>
+      </div>
+      <p id="progress-text" class="progress-text">0 of 0 entries</p>
+    </div>
+
+    <button id="export-btn" class="export-btn" disabled>Export Transcript</button>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

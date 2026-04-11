@@ -1,0 +1,78 @@
+// Teams Transcript Exporter — popup script
+
+const statusIcon = document.getElementById('status-icon');
+const statusText = document.getElementById('status-text');
+const progressArea = document.getElementById('progress-area');
+const progressFill = document.getElementById('progress-fill');
+const progressText = document.getElementById('progress-text');
+const exportBtn = document.getElementById('export-btn');
+
+function setStatus(state, message) {
+  statusIcon.className = `status-icon ${state}`;
+  statusText.textContent = message;
+}
+
+function showProgress(captured, total) {
+  progressArea.classList.remove('hidden');
+  const pct = total > 0 ? Math.round((captured / total) * 100) : 0;
+  progressFill.style.width = `${pct}%`;
+  progressText.textContent = `${captured} of ${total} entries`;
+}
+
+function hideProgress() {
+  progressArea.classList.add('hidden');
+}
+
+// Listen for messages from content.js during scraping
+chrome.runtime.onMessage.addListener((message) => {
+  if (message.type === 'progress') {
+    setStatus('scraping', 'Exporting transcript...');
+    showProgress(message.captured, message.total);
+  } else if (message.type === 'done') {
+    setStatus('done', `Downloaded: ${message.filename}`);
+    showProgress(message.count, message.count);
+    progressFill.style.width = '100%';
+    exportBtn.disabled = false;
+    exportBtn.textContent = 'Export Again';
+  } else if (message.type === 'error') {
+    setStatus('error', message.message);
+    hideProgress();
+    exportBtn.disabled = false;
+    exportBtn.textContent = 'Export Transcript';
+  }
+});
+
+exportBtn.addEventListener('click', async () => {
+  exportBtn.disabled = true;
+  exportBtn.textContent = 'Exporting...';
+  setStatus('scraping', 'Starting export...');
+  hideProgress();
+
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  chrome.tabs.sendMessage(tab.id, { action: 'scrape' });
+});
+
+// On popup open — ping the content script to check page state
+async function init() {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const response = await chrome.tabs.sendMessage(tab.id, { action: 'ping' });
+
+    if (response.status === 'ready') {
+      setStatus('ready', 'Transcript panel detected. Ready to export.');
+      exportBtn.disabled = false;
+    } else if (response.status === 'no-transcript') {
+      setStatus('warning', 'Open the transcript panel first, then click Export.');
+      exportBtn.disabled = true;
+    } else {
+      setStatus('error', 'Navigate to a Teams meeting recording first.');
+      exportBtn.disabled = true;
+    }
+  } catch {
+    // Content script not injected — not on a matching page
+    setStatus('error', 'Not on a Teams recording page.');
+    exportBtn.disabled = true;
+  }
+}
+
+init();

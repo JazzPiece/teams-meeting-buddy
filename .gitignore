@@ -1,0 +1,42 @@
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Claude Code internal
+.claude/
+
+# Working/scratch scripts (not part of the extension)
+teams-transcript-extension/working.js
+
+# Chrome extension build artifacts
+*.crx
+*.pem
+*.zip
+
+# Node (if tooling is added later)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnp.*
+.yarn/
+
+# Env / secrets
+.env
+.env.*
+*.key
+*.secret
+
+# Logs
+*.log
+
+# Test output
+coverage/
