@@ -40,3 +40,4 @@ yarn-error.log*
 
 # Test output
 coverage/
+*.vtt
