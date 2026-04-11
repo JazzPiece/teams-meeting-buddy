@@ -49,7 +49,8 @@ exportBtn.addEventListener('click', async () => {
   hideProgress();
 
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  chrome.tabs.sendMessage(tab.id, { action: 'scrape' });
+  // Send to background — it runs fiber extraction in the page's main world
+  chrome.runtime.sendMessage({ action: 'scrape', tabId: tab.id });
 });
 
 // On popup open — ping the content script to check page state
