@@ -23,7 +23,7 @@ function hideProgress() {
   progressArea.classList.add('hidden');
 }
 
-// Listen for messages from content.js during scraping
+// Listen for progress/done/error messages from background.js
 chrome.runtime.onMessage.addListener((message) => {
   if (message.type === 'progress') {
     setStatus('scraping', 'Exporting transcript...');

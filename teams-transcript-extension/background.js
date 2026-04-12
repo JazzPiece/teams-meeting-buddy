@@ -4,11 +4,9 @@
 // via chrome.scripting.executeScript({ world: 'MAIN' }).
 // This bypasses both the isolated-world restriction AND SharePoint's CSP.
 
-chrome.runtime.onInstalled.addListener(() => {
-  console.log('Teams Transcript Exporter installed.');
-});
+chrome.runtime.onInstalled.addListener(() => {});
 
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.action === 'scrape') {
     handleScrape(message.tabId);
     sendResponse({ ok: true });
