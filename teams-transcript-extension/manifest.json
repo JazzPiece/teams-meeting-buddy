@@ -37,7 +37,7 @@
   },
   "browser_specific_settings": {
     "gecko": {
-      "id": "teams-transcript-exporter@local",
+      "id": "teams-transcript-exporter@jazzpiece",
       "strict_min_version": "128.0"
     }
   }
