@@ -4,8 +4,6 @@
 // via chrome.scripting.executeScript({ world: 'MAIN' }).
 // This bypasses both the isolated-world restriction AND SharePoint's CSP.
 
-chrome.runtime.onInstalled.addListener(() => {});
-
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.action === 'scrape') {
     handleScrape(message.tabId);
@@ -18,12 +16,15 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
 async function handleScrape(tabId) {
   try {
+    const timeout = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Extraction timed out. Try reopening the transcript panel.')), 10000)
+    );
+
     // Run fiber extraction in the page's main JS world — has full React access
-    const results = await chrome.scripting.executeScript({
-      target: { tabId },
-      world: 'MAIN',
-      func: extractTranscriptFromFiber
-    });
+    const results = await Promise.race([
+      chrome.scripting.executeScript({ target: { tabId }, world: 'MAIN', func: extractTranscriptFromFiber }),
+      timeout
+    ]);
 
     const items = results[0]?.result;
 

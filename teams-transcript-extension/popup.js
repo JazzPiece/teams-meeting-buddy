@@ -29,7 +29,7 @@ chrome.runtime.onMessage.addListener((message) => {
     setStatus('scraping', 'Exporting transcript...');
     showProgress(message.captured, message.total);
   } else if (message.type === 'done') {
-    setStatus('done', `Downloaded: ${message.filename}`);
+    setStatus('done', `Downloaded: ${message.filename} · ${message.count} entries`);
     showProgress(message.count, message.count);
     progressFill.style.width = '100%';
     exportBtn.disabled = false;
