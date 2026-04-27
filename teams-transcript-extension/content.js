@@ -14,6 +14,7 @@ function handlePing(sendResponse) {
     sendResponse({ status: 'ready' });
     return;
   }
+  // Multiple signals because SharePoint URL structure and DOM classes vary across tenants/Teams versions
   const isRecordingPage =
     location.href.includes('stream.aspx') ||
     location.href.includes('/personal/') ||

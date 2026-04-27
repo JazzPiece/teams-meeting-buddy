@@ -60,6 +60,7 @@ function extractTranscriptFromFiber() {
     if (!key) return null;
 
     let node = domNode[key];
+    // Cap at 50 ancestors — prevents runaway traversal if the fiber tree has an unexpected shape
     for (let i = 0; i < 50; i++) {
       const p = node.memoizedProps;
       if (p && Array.isArray(p.items) && p.items.length > 0) {
@@ -109,6 +110,7 @@ function buildVtt(cues) {
   cues.forEach((item, i) => {
     const start  = parseDuration(item.timestamp);
     const end    = parseDuration(item.endTime);
+    // Some entries have missing/equal end times — pad by 1s so the cue has a valid duration
     const endAdj = end > start ? end : start + 1;
     vtt += `${i + 1}\n`;
     vtt += `${toVTTTime(start)} --> ${toVTTTime(endAdj)}\n`;
@@ -119,6 +121,7 @@ function buildVtt(cues) {
 
 function parseDuration(pt) {
   if (!pt) return 0;
+  // Teams stores timestamps as ISO 8601 durations (e.g. "PT1H23M4.5S")
   const m = pt.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?/);
   if (!m) return 0;
   return (parseInt(m[1] || 0) * 3600)
