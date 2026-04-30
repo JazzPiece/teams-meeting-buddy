@@ -6,7 +6,7 @@
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.action === 'scrape') {
-    handleScrape(message.tabId);
+    handleScrape(message.tabId, message.format || 'vtt');
     sendResponse({ ok: true });
     return true;
   }
@@ -14,7 +14,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
 // ── Scrape ────────────────────────────────────────────────────────────────────
 
-async function handleScrape(tabId) {
+async function handleScrape(tabId, format) {
   try {
     const timeout = new Promise((_, reject) =>
       setTimeout(() => reject(new Error('Extraction timed out. Try reopening the transcript panel.')), 10000)
@@ -35,12 +35,19 @@ async function handleScrape(tabId) {
 
     sendToPopup({ type: 'progress', captured: items.length, total: items.length });
 
-    const vtt      = buildVtt(items);
     const tab      = await chrome.tabs.get(tabId);
-    const filename = buildFilename(tab.title || '');
+    const filename = buildFilename(tab.title || '', format);
 
     // Download using a data URL — works from service worker without blob/URL APIs
-    const dataUrl = 'data:text/vtt;charset=utf-8,' + encodeURIComponent(vtt);
+    let dataUrl;
+    if (format === 'docx') {
+      const bytes  = buildDocx(items);
+      let binary   = '';
+      for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+      dataUrl = 'data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,' + btoa(binary);
+    } else {
+      dataUrl = 'data:text/vtt;charset=utf-8,' + encodeURIComponent(buildVtt(items));
+    }
     await chrome.downloads.download({ url: dataUrl, filename, saveAs: false });
 
     sendToPopup({ type: 'done', filename, count: items.length });
@@ -140,7 +147,7 @@ function toVTTTime(sec) {
 
 // ── Filename ──────────────────────────────────────────────────────────────────
 
-function buildFilename(title) {
+function buildFilename(title, ext = 'vtt') {
   title = title.replace(/\s*[-–]\s*(Microsoft\s+)?Stream\s*$/i, '');
   title = title.replace(/-\d{8}_\d{6}-Meeting Recording/i, '');
   title = title.trim().replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '');
@@ -148,7 +155,158 @@ function buildFilename(title) {
     const now = new Date();
     title = `teams_transcript_${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
   }
-  return `${title}.vtt`;
+  return `${title}.${ext}`;
+}
+
+// ── DOCX builder ──────────────────────────────────────────────────────────────
+
+function buildDocx(cues) {
+  const enc = new TextEncoder();
+
+  function xmlEscape(s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  function toReadableTime(pt) {
+    const sec = parseDuration(pt);
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const s = Math.floor(sec % 60);
+    return [h, m, s].map(n => String(n).padStart(2, '0')).join(':');
+  }
+
+  let paragraphs = '';
+  for (const item of cues) {
+    const speaker = xmlEscape(item.speakerDisplayName || 'Unknown');
+    const time    = toReadableTime(item.timestamp);
+    const text    = xmlEscape(item.text);
+    paragraphs += `<w:p><w:pPr><w:spacing w:before="160" w:after="0"/></w:pPr>` +
+      `<w:r><w:rPr><w:b/></w:rPr><w:t xml:space="preserve">${speaker}  </w:t></w:r>` +
+      `<w:r><w:rPr><w:color w:val="888888"/><w:sz w:val="18"/></w:rPr><w:t>${time}</w:t></w:r></w:p>` +
+      `<w:p><w:pPr><w:spacing w:before="0" w:after="0"/></w:pPr><w:r><w:t>${text}</w:t></w:r></w:p>`;
+  }
+
+  const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+    `<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">` +
+    `<w:body>${paragraphs}<w:sectPr/></w:body></w:document>`;
+
+  const contentTypesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+    `<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">` +
+    `<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>` +
+    `<Default Extension="xml" ContentType="application/xml"/>` +
+    `<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>` +
+    `</Types>`;
+
+  const relsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+    `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">` +
+    `<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>` +
+    `</Relationships>`;
+
+  const wordRelsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+    `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"/>`;
+
+  return buildZip([
+    { name: '[Content_Types].xml',          data: enc.encode(contentTypesXml) },
+    { name: '_rels/.rels',                  data: enc.encode(relsXml) },
+    { name: 'word/document.xml',            data: enc.encode(documentXml) },
+    { name: 'word/_rels/document.xml.rels', data: enc.encode(wordRelsXml) },
+  ]);
+}
+
+// Builds an uncompressed (STORE) ZIP archive from an array of {name, data} entries.
+function buildZip(files) {
+  const entries = [];
+  const localParts = [];
+  let offset = 0;
+
+  for (const file of files) {
+    const nameBytes = new TextEncoder().encode(file.name);
+    const { data } = file;
+    const crc  = crc32(data);
+    const size = data.length;
+
+    const lh = new Uint8Array(30 + nameBytes.length);
+    const lv = new DataView(lh.buffer);
+    lv.setUint32(0,  0x04034b50, true); // local file header signature
+    lv.setUint16(4,  20,         true); // version needed
+    lv.setUint16(6,  0,          true); // flags
+    lv.setUint16(8,  0,          true); // compression: STORE
+    lv.setUint16(10, 0,          true); // mod time
+    lv.setUint16(12, 0,          true); // mod date
+    lv.setUint32(14, crc,        true);
+    lv.setUint32(18, size,       true); // compressed size
+    lv.setUint32(22, size,       true); // uncompressed size
+    lv.setUint16(26, nameBytes.length, true);
+    lv.setUint16(28, 0,          true); // extra field length
+    lh.set(nameBytes, 30);
+
+    entries.push({ nameBytes, crc, size, offset });
+    localParts.push(lh, data);
+    offset += lh.length + size;
+  }
+
+  const cdParts = [];
+  let cdSize = 0;
+  const cdOffset = offset;
+
+  for (const e of entries) {
+    const cd = new Uint8Array(46 + e.nameBytes.length);
+    const cv = new DataView(cd.buffer);
+    cv.setUint32(0,  0x02014b50, true); // central directory signature
+    cv.setUint16(4,  20,         true);
+    cv.setUint16(6,  20,         true);
+    cv.setUint16(8,  0,          true);
+    cv.setUint16(10, 0,          true);
+    cv.setUint16(12, 0,          true);
+    cv.setUint16(14, 0,          true);
+    cv.setUint32(16, e.crc,      true);
+    cv.setUint32(20, e.size,     true);
+    cv.setUint32(24, e.size,     true);
+    cv.setUint16(28, e.nameBytes.length, true);
+    cv.setUint16(30, 0,          true); // extra
+    cv.setUint16(32, 0,          true); // comment
+    cv.setUint16(34, 0,          true); // disk start
+    cv.setUint16(36, 0,          true); // internal attrs
+    cv.setUint32(38, 0,          true); // external attrs
+    cv.setUint32(42, e.offset,   true); // local header offset
+    cd.set(e.nameBytes, 46);
+    cdParts.push(cd);
+    cdSize += cd.length;
+  }
+
+  const eocdr = new Uint8Array(22);
+  const ev = new DataView(eocdr.buffer);
+  ev.setUint32(0,  0x06054b50,     true); // end of central directory signature
+  ev.setUint16(4,  0,              true);
+  ev.setUint16(6,  0,              true);
+  ev.setUint16(8,  entries.length, true);
+  ev.setUint16(10, entries.length, true);
+  ev.setUint32(12, cdSize,         true);
+  ev.setUint32(16, cdOffset,       true);
+  ev.setUint16(20, 0,              true);
+
+  const allParts = [...localParts, ...cdParts, eocdr];
+  const total = allParts.reduce((s, p) => s + p.length, 0);
+  const out = new Uint8Array(total);
+  let pos = 0;
+  for (const p of allParts) { out.set(p, pos); pos += p.length; }
+  return out;
+}
+
+const CRC32_TABLE = (() => {
+  const t = new Uint32Array(256);
+  for (let i = 0; i < 256; i++) {
+    let c = i;
+    for (let j = 0; j < 8; j++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+    t[i] = c;
+  }
+  return t;
+})();
+
+function crc32(buf) {
+  let c = 0xFFFFFFFF;
+  for (let i = 0; i < buf.length; i++) c = CRC32_TABLE[(c ^ buf[i]) & 0xFF] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
 }
 
 // ── Messaging ─────────────────────────────────────────────────────────────────

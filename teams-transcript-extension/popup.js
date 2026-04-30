@@ -7,6 +7,16 @@ const progressFill = document.getElementById('progress-fill');
 const progressText = document.getElementById('progress-text');
 const exportBtn = document.getElementById('export-btn');
 
+let selectedFormat = 'vtt';
+
+document.querySelectorAll('.format-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.format-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    selectedFormat = btn.dataset.format;
+  });
+});
+
 function setStatus(state, message) {
   statusIcon.className = `status-icon ${state}`;
   statusText.textContent = message;
@@ -50,7 +60,7 @@ exportBtn.addEventListener('click', async () => {
 
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   // Send to background — it runs fiber extraction in the page's main world
-  chrome.runtime.sendMessage({ action: 'scrape', tabId: tab.id });
+  chrome.runtime.sendMessage({ action: 'scrape', tabId: tab.id, format: selectedFormat });
 });
 
 // On popup open — ping the content script to check page state

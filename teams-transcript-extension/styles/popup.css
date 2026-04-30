@@ -100,6 +100,31 @@ h1 {
   text-align: right;
 }
 
+.format-selector {
+  display: flex;
+  border: 1px solid #d1d1d1;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.format-btn {
+  flex: 1;
+  padding: 6px;
+  background: #fff;
+  border: none;
+  border-right: 1px solid #d1d1d1;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  color: #424242;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.format-btn:last-child { border-right: none; }
+.format-btn.active     { background: #6264A7; color: #fff; }
+.format-btn:hover:not(.active) { background: #f3f2f1; }
+
 .export-btn {
   width: 100%;
   padding: 9px 16px;
