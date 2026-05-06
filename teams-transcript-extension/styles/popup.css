@@ -100,7 +100,20 @@ h1 {
   text-align: right;
 }
 
+.format-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.format-label {
+  font-size: 12px;
+  color: #717171;
+  white-space: nowrap;
+}
+
 .format-selector {
+  flex: 1;
   display: flex;
   border: 1px solid #d1d1d1;
   border-radius: 4px;
@@ -121,9 +134,10 @@ h1 {
   transition: background 0.1s;
 }
 
-.format-btn:last-child { border-right: none; }
-.format-btn.active     { background: #6264A7; color: #fff; }
-.format-btn:hover:not(.active) { background: #f3f2f1; }
+.format-btn:last-child          { border-right: none; }
+.format-btn.active              { background: #6264A7; color: #fff; }
+.format-btn:hover:not(.active):not(:disabled) { background: #f3f2f1; }
+.format-btn:disabled            { opacity: 0.45; cursor: not-allowed; }
 
 .export-btn {
   width: 100%;

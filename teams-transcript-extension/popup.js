@@ -17,6 +17,10 @@ document.querySelectorAll('.format-btn').forEach(btn => {
   });
 });
 
+function setFormatLocked(locked) {
+  document.querySelectorAll('.format-btn').forEach(btn => { btn.disabled = locked; });
+}
+
 function setStatus(state, message) {
   statusIcon.className = `status-icon ${state}`;
   statusText.textContent = message;
@@ -44,17 +48,20 @@ chrome.runtime.onMessage.addListener((message) => {
     progressFill.style.width = '100%';
     exportBtn.disabled = false;
     exportBtn.textContent = 'Export Again';
+    setFormatLocked(false);
   } else if (message.type === 'error') {
     setStatus('error', message.message);
     hideProgress();
     exportBtn.disabled = false;
     exportBtn.textContent = 'Export Transcript';
+    setFormatLocked(false);
   }
 });
 
 exportBtn.addEventListener('click', async () => {
   exportBtn.disabled = true;
   exportBtn.textContent = 'Exporting...';
+  setFormatLocked(true);
   setStatus('scraping', 'Starting export...');
   hideProgress();
 
