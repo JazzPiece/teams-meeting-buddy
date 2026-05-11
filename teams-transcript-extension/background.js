@@ -10,6 +10,11 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     sendResponse({ ok: true });
     return true;
   }
+  if (message.action === 'copy') {
+    handleCopy(message.tabId);
+    sendResponse({ ok: true });
+    return true;
+  }
 });
 
 // ── Scrape ────────────────────────────────────────────────────────────────────
@@ -55,6 +60,40 @@ async function handleScrape(tabId, format) {
   } catch (err) {
     sendToPopup({ type: 'error', message: err.message || 'Unknown error during export.' });
   }
+}
+
+// ── Copy ──────────────────────────────────────────────────────────────────────
+
+async function handleCopy(tabId) {
+  try {
+    const timeout = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Extraction timed out. Try reopening the transcript panel.')), 10000)
+    );
+    const results = await Promise.race([
+      chrome.scripting.executeScript({ target: { tabId }, world: 'MAIN', func: extractTranscriptFromFiber }),
+      timeout
+    ]);
+    const items = results[0]?.result;
+    if (!items || items.length === 0) {
+      sendToPopup({ type: 'error', message: 'Could not read transcript. Make sure the transcript panel is open.' });
+      return;
+    }
+    sendToPopup({ type: 'copyReady', text: buildPlainText(items), count: items.length });
+  } catch (err) {
+    sendToPopup({ type: 'error', message: err.message || 'Unknown error during copy.' });
+  }
+}
+
+function buildPlainText(cues) {
+  return cues.map(item => {
+    const sec = parseDuration(item.timestamp);
+    const h   = Math.floor(sec / 3600);
+    const m   = Math.floor((sec % 3600) / 60);
+    const s   = Math.floor(sec % 60);
+    const ts  = [h, m, s].map(n => String(n).padStart(2, '0')).join(':');
+    const speaker = item.speakerDisplayName ? `${item.speakerDisplayName} [${ts}]` : `[${ts}]`;
+    return `${speaker}\n${item.text}`;
+  }).join('\n\n');
 }
 
 // ── Fiber extraction — THIS FUNCTION RUNS IN THE PAGE'S MAIN WORLD ───────────

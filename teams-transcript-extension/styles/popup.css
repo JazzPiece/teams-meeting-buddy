@@ -139,8 +139,32 @@ h1 {
 .format-btn:hover:not(.active):not(:disabled) { background: #f3f2f1; }
 .format-btn:disabled            { opacity: 0.45; cursor: not-allowed; }
 
+.action-row {
+  display: flex;
+  gap: 8px;
+}
+
+.copy-btn {
+  flex: 0 0 auto;
+  padding: 9px 14px;
+  background: #ffffff;
+  color: #6264A7;
+  border: 1.5px solid #6264A7;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+
+.copy-btn:hover:not(:disabled) { background: #f0f0fa; }
+.copy-btn:active:not(:disabled) { background: #e0e0f5; }
+.copy-btn:disabled { border-color: #c8c8c8; color: #c8c8c8; cursor: not-allowed; }
+
 .export-btn {
-  width: 100%;
+  flex: 1;
   padding: 9px 16px;
   background: #6264A7;
   color: #ffffff;

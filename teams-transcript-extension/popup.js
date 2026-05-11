@@ -6,6 +6,7 @@ const progressArea = document.getElementById('progress-area');
 const progressFill = document.getElementById('progress-fill');
 const progressText = document.getElementById('progress-text');
 const exportBtn = document.getElementById('export-btn');
+const copyBtn   = document.getElementById('copy-btn');
 
 let selectedFormat = 'vtt';
 
@@ -48,14 +49,35 @@ chrome.runtime.onMessage.addListener((message) => {
     progressFill.style.width = '100%';
     exportBtn.disabled = false;
     exportBtn.textContent = 'Export Again';
+    copyBtn.disabled = false;
     setFormatLocked(false);
   } else if (message.type === 'error') {
     setStatus('error', message.message);
     hideProgress();
     exportBtn.disabled = false;
-    exportBtn.textContent = 'Export Transcript';
+    exportBtn.textContent = 'Export';
+    copyBtn.disabled = false;
     setFormatLocked(false);
+  } else if (message.type === 'copyReady') {
+    navigator.clipboard.writeText(message.text).then(() => {
+      copyBtn.textContent = 'Copied!';
+      copyBtn.disabled = false;
+      setStatus('done', `Copied ${message.count} entries to clipboard.`);
+      setTimeout(() => { copyBtn.textContent = 'Copy Text'; }, 2000);
+    }).catch(() => {
+      copyBtn.textContent = 'Copy Text';
+      copyBtn.disabled = false;
+      setStatus('error', 'Clipboard write failed — try again.');
+    });
   }
+});
+
+copyBtn.addEventListener('click', async () => {
+  copyBtn.disabled = true;
+  copyBtn.textContent = 'Copying...';
+  setStatus('scraping', 'Reading transcript...');
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  chrome.runtime.sendMessage({ action: 'copy', tabId: tab.id });
 });
 
 exportBtn.addEventListener('click', async () => {
@@ -79,17 +101,21 @@ async function init() {
     if (response.status === 'ready') {
       setStatus('ready', 'Transcript panel detected. Ready to export.');
       exportBtn.disabled = false;
+      copyBtn.disabled = false;
     } else if (response.status === 'no-transcript') {
       setStatus('warning', 'Open the transcript panel first, then click Export.');
       exportBtn.disabled = true;
+      copyBtn.disabled = true;
     } else {
       setStatus('error', 'Navigate to a Teams meeting recording first.');
       exportBtn.disabled = true;
+      copyBtn.disabled = true;
     }
   } catch {
     // Content script not injected — not on a matching page
     setStatus('error', 'Not on a Teams recording page.');
     exportBtn.disabled = true;
+    copyBtn.disabled = true;
   }
 }
 
