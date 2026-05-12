@@ -6,12 +6,12 @@
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.action === 'scrape') {
-    handleScrape(message.tabId, message.format || 'vtt');
+    handleScrape(message.tabId, message.format || 'vtt', !!message.merge);
     sendResponse({ ok: true });
     return true;
   }
   if (message.action === 'copy') {
-    handleCopy(message.tabId);
+    handleCopy(message.tabId, !!message.merge);
     sendResponse({ ok: true });
     return true;
   }
@@ -19,7 +19,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
 // ── Scrape ────────────────────────────────────────────────────────────────────
 
-async function handleScrape(tabId, format) {
+async function handleScrape(tabId, format, merge) {
   try {
     const timeout = new Promise((_, reject) =>
       setTimeout(() => reject(new Error('Extraction timed out. Try reopening the transcript panel.')), 10000)
@@ -31,12 +31,14 @@ async function handleScrape(tabId, format) {
       timeout
     ]);
 
-    const items = results[0]?.result;
+    let items = results[0]?.result;
 
     if (!items || items.length === 0) {
       sendToPopup({ type: 'error', message: 'Could not read transcript from React state. Make sure the transcript panel is open and fully loaded.' });
       return;
     }
+
+    if (merge) items = mergeCues(items);
 
     sendToPopup({ type: 'progress', captured: items.length, total: items.length });
 
@@ -50,6 +52,8 @@ async function handleScrape(tabId, format) {
       let binary   = '';
       for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
       dataUrl = 'data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,' + btoa(binary);
+    } else if (format === 'srt') {
+      dataUrl = 'data:text/srt;charset=utf-8,' + encodeURIComponent(buildSrt(items));
     } else {
       dataUrl = 'data:text/vtt;charset=utf-8,' + encodeURIComponent(buildVtt(items));
     }
@@ -64,7 +68,7 @@ async function handleScrape(tabId, format) {
 
 // ── Copy ──────────────────────────────────────────────────────────────────────
 
-async function handleCopy(tabId) {
+async function handleCopy(tabId, merge) {
   try {
     const timeout = new Promise((_, reject) =>
       setTimeout(() => reject(new Error('Extraction timed out. Try reopening the transcript panel.')), 10000)
@@ -73,11 +77,12 @@ async function handleCopy(tabId) {
       chrome.scripting.executeScript({ target: { tabId }, world: 'MAIN', func: extractTranscriptFromFiber }),
       timeout
     ]);
-    const items = results[0]?.result;
+    let items = results[0]?.result;
     if (!items || items.length === 0) {
       sendToPopup({ type: 'error', message: 'Could not read transcript. Make sure the transcript panel is open.' });
       return;
     }
+    if (merge) items = mergeCues(items);
     sendToPopup({ type: 'copyReady', text: buildPlainText(items), count: items.length });
   } catch (err) {
     sendToPopup({ type: 'error', message: err.message || 'Unknown error during copy.' });
@@ -149,6 +154,26 @@ function extractTranscriptFromFiber() {
     }));
 }
 
+// ── Merge consecutive same-speaker cues ──────────────────────────────────────
+
+function mergeCues(cues) {
+  if (!cues || cues.length === 0) return cues;
+  const merged = [];
+  let current = { ...cues[0] };
+  for (let i = 1; i < cues.length; i++) {
+    const cue = cues[i];
+    if (cue.speakerDisplayName === current.speakerDisplayName) {
+      current.text += ' ' + cue.text;
+      if (cue.endTime) current.endTime = cue.endTime;
+    } else {
+      merged.push(current);
+      current = { ...cue };
+    }
+  }
+  merged.push(current);
+  return merged;
+}
+
 // ── VTT builder ───────────────────────────────────────────────────────────────
 
 function buildVtt(cues) {
@@ -182,6 +207,29 @@ function toVTTTime(sec) {
   const ms = Math.round((sec - Math.floor(sec)) * 1000);
   return [h, m, s].map(n => String(n).padStart(2, '0')).join(':')
        + '.' + String(ms).padStart(3, '0');
+}
+
+// ── SRT builder ───────────────────────────────────────────────────────────────
+
+function buildSrt(cues) {
+  let srt = '';
+  cues.forEach((item, i) => {
+    const start  = parseDuration(item.timestamp);
+    const end    = parseDuration(item.endTime);
+    const endAdj = end > start ? end : start + 1;
+    const line   = item.speakerDisplayName ? `${item.speakerDisplayName}: ${item.text}` : item.text;
+    srt += `${i + 1}\n${toSRTTime(start)} --> ${toSRTTime(endAdj)}\n${line}\n\n`;
+  });
+  return srt;
+}
+
+function toSRTTime(sec) {
+  const h  = Math.floor(sec / 3600);
+  const m  = Math.floor((sec % 3600) / 60);
+  const s  = Math.floor(sec % 60);
+  const ms = Math.round((sec - Math.floor(sec)) * 1000);
+  return [h, m, s].map(n => String(n).padStart(2, '0')).join(':')
+       + ',' + String(ms).padStart(3, '0');
 }
 
 // ── Filename ──────────────────────────────────────────────────────────────────

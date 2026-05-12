@@ -1,14 +1,36 @@
 // Teams Transcript Exporter — popup script
 
-const statusIcon = document.getElementById('status-icon');
-const statusText = document.getElementById('status-text');
+const statusIcon  = document.getElementById('status-icon');
+const statusText  = document.getElementById('status-text');
 const progressArea = document.getElementById('progress-area');
 const progressFill = document.getElementById('progress-fill');
 const progressText = document.getElementById('progress-text');
-const exportBtn = document.getElementById('export-btn');
-const copyBtn   = document.getElementById('copy-btn');
+const exportBtn   = document.getElementById('export-btn');
+const copyBtn     = document.getElementById('copy-btn');
+const settingsBtn = document.getElementById('settings-btn');
+const settingsPanel = document.getElementById('settings-panel');
+const mergeToggle = document.getElementById('merge-toggle');
 
 let selectedFormat = 'vtt';
+let mergeEnabled   = false;
+
+// ── Settings ──────────────────────────────────────────────────────────────────
+
+chrome.storage.local.get(['mergeEnabled'], (result) => {
+  mergeEnabled = !!result.mergeEnabled;
+  mergeToggle.checked = mergeEnabled;
+});
+
+settingsBtn.addEventListener('click', () => {
+  settingsPanel.classList.toggle('hidden');
+});
+
+mergeToggle.addEventListener('change', () => {
+  mergeEnabled = mergeToggle.checked;
+  chrome.storage.local.set({ mergeEnabled });
+});
+
+// ── Format selector ───────────────────────────────────────────────────────────
 
 document.querySelectorAll('.format-btn').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -21,6 +43,8 @@ document.querySelectorAll('.format-btn').forEach(btn => {
 function setFormatLocked(locked) {
   document.querySelectorAll('.format-btn').forEach(btn => { btn.disabled = locked; });
 }
+
+// ── Status / progress helpers ─────────────────────────────────────────────────
 
 function setStatus(state, message) {
   statusIcon.className = `status-icon ${state}`;
@@ -38,7 +62,8 @@ function hideProgress() {
   progressArea.classList.add('hidden');
 }
 
-// Listen for progress/done/error messages from background.js
+// ── Message handler (from background.js) ─────────────────────────────────────
+
 chrome.runtime.onMessage.addListener((message) => {
   if (message.type === 'progress') {
     setStatus('scraping', 'Exporting transcript...');
@@ -72,12 +97,14 @@ chrome.runtime.onMessage.addListener((message) => {
   }
 });
 
+// ── Button handlers ───────────────────────────────────────────────────────────
+
 copyBtn.addEventListener('click', async () => {
   copyBtn.disabled = true;
   copyBtn.textContent = 'Copying...';
   setStatus('scraping', 'Reading transcript...');
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  chrome.runtime.sendMessage({ action: 'copy', tabId: tab.id });
+  chrome.runtime.sendMessage({ action: 'copy', tabId: tab.id, merge: mergeEnabled });
 });
 
 exportBtn.addEventListener('click', async () => {
@@ -89,10 +116,11 @@ exportBtn.addEventListener('click', async () => {
 
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   // Send to background — it runs fiber extraction in the page's main world
-  chrome.runtime.sendMessage({ action: 'scrape', tabId: tab.id, format: selectedFormat });
+  chrome.runtime.sendMessage({ action: 'scrape', tabId: tab.id, format: selectedFormat, merge: mergeEnabled });
 });
 
-// On popup open — ping the content script to check page state
+// ── Init ──────────────────────────────────────────────────────────────────────
+
 async function init() {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });

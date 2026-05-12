@@ -11,7 +11,15 @@
     <header>
       <img src="icons/icon48.png" alt="" class="logo">
       <h1>Transcript Exporter</h1>
+      <button id="settings-btn" class="settings-btn" title="Settings">&#9881;</button>
     </header>
+
+    <div id="settings-panel" class="settings-panel hidden">
+      <label class="setting-row">
+        <span class="setting-label">Merge consecutive speaker lines</span>
+        <input type="checkbox" id="merge-toggle">
+      </label>
+    </div>
 
     <div class="status-area">
       <div id="status-icon" class="status-icon idle"></div>
@@ -29,6 +37,7 @@
       <span class="format-label">Format</span>
       <div class="format-selector">
         <button class="format-btn active" data-format="vtt">VTT</button>
+        <button class="format-btn" data-format="srt">SRT</button>
         <button class="format-btn" data-format="docx">DOCX</button>
       </div>
     </div>
