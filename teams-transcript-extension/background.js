@@ -42,8 +42,9 @@ async function handleScrape(tabId, format, merge) {
 
     sendToPopup({ type: 'progress', captured: items.length, total: items.length });
 
-    const tab      = await chrome.tabs.get(tabId);
-    const filename = buildFilename(tab.title || '', format);
+    const tab = await chrome.tabs.get(tabId);
+    const extMap = { vtt: 'vtt', srt: 'srt', docx: 'docx', compact: 'txt' };
+    const filename = buildFilename(tab.title || '', extMap[format] || format);
 
     // Download using a data URL — works from service worker without blob/URL APIs
     let dataUrl;
@@ -54,6 +55,8 @@ async function handleScrape(tabId, format, merge) {
       dataUrl = 'data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,' + btoa(binary);
     } else if (format === 'srt') {
       dataUrl = 'data:text/srt;charset=utf-8,' + encodeURIComponent(buildSrt(items));
+    } else if (format === 'compact') {
+      dataUrl = 'data:text/plain;charset=utf-8,' + encodeURIComponent(buildCompact(items));
     } else {
       dataUrl = 'data:text/vtt;charset=utf-8,' + encodeURIComponent(buildVtt(items));
     }
@@ -230,6 +233,54 @@ function toSRTTime(sec) {
   const ms = Math.round((sec - Math.floor(sec)) * 1000);
   return [h, m, s].map(n => String(n).padStart(2, '0')).join(':')
        + ',' + String(ms).padStart(3, '0');
+}
+
+// ── Compact builder (token-efficient plain text for LLM input) ────────────────
+//
+// Output structure:
+//   A=Alice Johnson  B=Bob Smith
+//
+//   [0:00]A: Welcome everyone.
+//   [1:23]B: Thanks. Here are the results.
+//
+// Savings vs VTT: ~60-70% fewer tokens on a typical transcript.
+// Always merges consecutive same-speaker turns regardless of the merge toggle.
+
+function buildCompact(cues) {
+  const merged = mergeCues(cues);
+
+  // Assign single-letter codes in order of first appearance
+  const codes = new Map();
+  const alpha  = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  for (const cue of merged) {
+    const name = cue.speakerDisplayName || '';
+    if (!codes.has(name)) {
+      const i = codes.size;
+      codes.set(name, i < 26 ? alpha[i] : alpha[Math.floor(i / 26) - 1] + alpha[i % 26]);
+    }
+  }
+
+  // Legend — only named speakers
+  const legendParts = [];
+  for (const [name, code] of codes) {
+    if (name) legendParts.push(`${code}=${name}`);
+  }
+  const legend = legendParts.length ? legendParts.join('  ') + '\n\n' : '';
+
+  // One line per turn: [M:SS]A: text  (H:MM:SS only for meetings > 1 hour)
+  const lines = merged.map(cue => {
+    const sec = parseDuration(cue.timestamp);
+    const h   = Math.floor(sec / 3600);
+    const m   = Math.floor((sec % 3600) / 60);
+    const s   = Math.floor(sec % 60);
+    const ts  = h > 0
+      ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+      : `${m}:${String(s).padStart(2, '0')}`;
+    const code = codes.get(cue.speakerDisplayName || '') || '';
+    return `[${ts}]${code ? code + ': ' : ''}${cue.text}`;
+  });
+
+  return legend + lines.join('\n');
 }
 
 // ── Filename ──────────────────────────────────────────────────────────────────
