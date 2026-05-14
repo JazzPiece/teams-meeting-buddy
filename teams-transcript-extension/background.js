@@ -270,17 +270,24 @@ function buildCompact(cues) {
   }
   const legend = legendParts.length ? legendParts.join('  ') + '\n\n' : '';
 
-  // One line per turn: [M:SS]A: text  (H:MM:SS only for meetings > 1 hour)
+  // One line per turn — timestamp emitted only when the speaker changes
+  let prevSpeaker = null;
   const lines = items.map(cue => {
-    const sec = parseDuration(cue.timestamp);
-    const h   = Math.floor(sec / 3600);
-    const m   = Math.floor((sec % 3600) / 60);
-    const s   = Math.floor(sec % 60);
-    const ts  = h > 0
-      ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
-      : `${m}:${String(s).padStart(2, '0')}`;
-    const code = codes.get(cue.speakerDisplayName || '') || '';
-    return `[${ts}]${code ? code + ': ' : ''}${stripFillers(cue.text)}`;
+    const code           = codes.get(cue.speakerDisplayName || '') || '';
+    const speakerChanged = cue.speakerDisplayName !== prevSpeaker;
+    prevSpeaker          = cue.speakerDisplayName;
+    const text           = stripFillers(cue.text);
+    if (speakerChanged) {
+      const sec = parseDuration(cue.timestamp);
+      const h   = Math.floor(sec / 3600);
+      const m   = Math.floor((sec % 3600) / 60);
+      const s   = Math.floor(sec % 60);
+      const ts  = h > 0
+        ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+        : `${m}:${String(s).padStart(2, '0')}`;
+      return `[${ts}]${code ? code + ': ' : ''}${text}`;
+    }
+    return `  ${text}`;
   });
 
   return legend + lines.join('\n');
