@@ -27,6 +27,12 @@
       "js": ["content.js"]
     }
   ],
+  "commands": {
+    "export-transcript": {
+      "suggested_key": { "default": "Alt+Shift+T", "mac": "Alt+Shift+T" },
+      "description": "Export transcript with current settings"
+    }
+  },
   "background": {
     "service_worker": "background.js"
   },

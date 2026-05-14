@@ -4,6 +4,14 @@
 // via chrome.scripting.executeScript({ world: 'MAIN' }).
 // This bypasses both the isolated-world restriction AND SharePoint's CSP.
 
+chrome.commands.onCommand.addListener(async (command) => {
+  if (command !== 'export-transcript') return;
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab) return;
+  const stored = await chrome.storage.local.get(['savedFormat', 'mergeEnabled']);
+  handleScrape(tab.id, stored.savedFormat || 'vtt', !!stored.mergeEnabled);
+});
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.action === 'scrape') {
     handleScrape(message.tabId, message.format || 'vtt', !!message.merge);
