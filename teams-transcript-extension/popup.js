@@ -16,9 +16,14 @@ let mergeEnabled   = false;
 
 // ── Settings ──────────────────────────────────────────────────────────────────
 
-chrome.storage.local.get(['mergeEnabled'], (result) => {
+chrome.storage.local.get(['mergeEnabled', 'savedFormat'], (result) => {
   mergeEnabled = !!result.mergeEnabled;
   mergeToggle.checked = mergeEnabled;
+  if (result.savedFormat) {
+    selectedFormat = result.savedFormat;
+    document.querySelectorAll('.format-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector(`.format-btn[data-format="${result.savedFormat}"]`)?.classList.add('active');
+  }
 });
 
 settingsBtn.addEventListener('click', () => {
@@ -37,6 +42,7 @@ document.querySelectorAll('.format-btn').forEach(btn => {
     document.querySelectorAll('.format-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     selectedFormat = btn.dataset.format;
+    chrome.storage.local.set({ savedFormat: selectedFormat });
   });
 });
 
