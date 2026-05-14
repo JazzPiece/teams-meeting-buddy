@@ -247,12 +247,15 @@ function toSRTTime(sec) {
 // Always merges consecutive same-speaker turns regardless of the merge toggle.
 
 function buildCompact(cues) {
-  const merged = mergeCues(cues);
+  let items = mergeCues(cues);
+  // Drop pure acknowledgement turns, then re-merge in case removal made same-speaker adjacent
+  items = items.filter(cue => !isAcknowledgement(cue.text));
+  items = mergeCues(items);
 
   // Assign single-letter codes in order of first appearance
   const codes = new Map();
   const alpha  = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-  for (const cue of merged) {
+  for (const cue of items) {
     const name = cue.speakerDisplayName || '';
     if (!codes.has(name)) {
       const i = codes.size;
@@ -268,7 +271,7 @@ function buildCompact(cues) {
   const legend = legendParts.length ? legendParts.join('  ') + '\n\n' : '';
 
   // One line per turn: [M:SS]A: text  (H:MM:SS only for meetings > 1 hour)
-  const lines = merged.map(cue => {
+  const lines = items.map(cue => {
     const sec = parseDuration(cue.timestamp);
     const h   = Math.floor(sec / 3600);
     const m   = Math.floor((sec % 3600) / 60);
@@ -281,6 +284,18 @@ function buildCompact(cues) {
   });
 
   return legend + lines.join('\n');
+}
+
+const ACK_SET = new Set([
+  'yeah','yes','yep','yup','no','nope','ok','okay','sure','right','alright',
+  'got it','thanks','thank you','absolutely','exactly','correct','agreed',
+  'fine','great','good','nice','perfect','sounds good','makes sense',
+  'understood','i see','i agree','me too','same here','will do',
+]);
+
+function isAcknowledgement(text) {
+  const t = stripFillers(text).replace(/[.!?,]/g, '').trim().toLowerCase();
+  return ACK_SET.has(t);
 }
 
 function stripFillers(text) {
