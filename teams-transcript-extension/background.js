@@ -235,6 +235,19 @@ function toSRTTime(sec) {
        + ',' + String(ms).padStart(3, '0');
 }
 
+// ── System entry filter ───────────────────────────────────────────────────────
+
+const SYSTEM_PATTERNS = [
+  /^recording (started|stopped|paused|resumed)/i,
+  /^(live )?(transcription|caption)s? (started|stopped|enabled|disabled)/i,
+  /^meeting (started|ended|recording started)/i,
+  /^.+ (has )?(joined|left) (the )?(meeting|call)/i,
+];
+
+function stripSystemEntries(cues) {
+  return cues.filter(cue => !SYSTEM_PATTERNS.some(re => re.test(cue.text.trim())));
+}
+
 // ── Compact builder (token-efficient plain text for LLM input) ────────────────
 //
 // Output structure:
@@ -247,7 +260,8 @@ function toSRTTime(sec) {
 // Always merges consecutive same-speaker turns regardless of the merge toggle.
 
 function buildCompact(cues) {
-  let items = mergeCues(cues);
+  let items = stripSystemEntries(cues);
+  items = mergeCues(items);
   // Drop pure acknowledgement turns, then re-merge in case removal made same-speaker adjacent
   items = items.filter(cue => !isAcknowledgement(cue.text));
   items = mergeCues(items);
