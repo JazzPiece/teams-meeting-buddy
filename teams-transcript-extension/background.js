@@ -290,7 +290,7 @@ function buildCompact(cues) {
     const code           = codes.get(cue.speakerDisplayName || '') || '';
     const speakerChanged = cue.speakerDisplayName !== prevSpeaker;
     prevSpeaker          = cue.speakerDisplayName;
-    const text           = stripFillers(cue.text);
+    const text           = stripFillers(cue.text).toLowerCase();
     if (speakerChanged) {
       const sec = parseDuration(cue.timestamp);
       const h   = Math.floor(sec / 3600);
