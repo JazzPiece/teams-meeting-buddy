@@ -277,10 +277,22 @@ function buildCompact(cues) {
       ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
       : `${m}:${String(s).padStart(2, '0')}`;
     const code = codes.get(cue.speakerDisplayName || '') || '';
-    return `[${ts}]${code ? code + ': ' : ''}${cue.text}`;
+    return `[${ts}]${code ? code + ': ' : ''}${stripFillers(cue.text)}`;
   });
 
   return legend + lines.join('\n');
+}
+
+function stripFillers(text) {
+  // Vocal fillers — nearly always noise in meeting transcripts
+  text = text.replace(/\b(um+h?|uh+|er+|ah+|h+m+|mhm)\b,?\s*/gi, ' ');
+  // High-confidence discourse markers that add no information
+  text = text.replace(/\b(you know|i mean),?\s*/gi, ' ');
+  // Sentence-opening throwaways: "So, ...", "Well, ...", "Right, ...", "Okay, ..."
+  text = text.replace(/^(so|well|right|alright|okay|ok),\s+/i, '');
+  text = text.replace(/([.?!]\s+)(so|well|right|alright|okay|ok),\s+/gi, '$1');
+  // Collapse any double-spaces left behind, strip leading comma/space
+  return text.replace(/\s{2,}/g, ' ').replace(/^[,\s]+/, '').trim();
 }
 
 // ── Filename ──────────────────────────────────────────────────────────────────
