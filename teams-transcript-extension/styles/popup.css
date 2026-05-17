@@ -1,15 +1,59 @@
+/* ── Colour tokens ────────────────────────────────────────────────────────── */
+
+:root {
+  --bg:            #ffffff;
+  --bg-alt:        #f9f9f9;
+  --bg-hover:      #f3f2f1;
+  --text-1:        #242424;
+  --text-2:        #424242;
+  --text-3:        #717171;
+  --border:        #e8e8e8;
+  --border-strong: #d1d1d1;
+  --accent:        #6264A7;
+  --accent-h:      #4f52a0;
+  --accent-a:      #3d3f7d;
+  --accent-pale:   #f0f0fa;
+  --accent-pale-a: #e0e0f5;
+  --disabled:      #c8c8c8;
+  --disabled-text: #999999;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg:            #1f1f1f;
+    --bg-alt:        #2d2d2d;
+    --bg-hover:      #383838;
+    --text-1:        #f3f2f1;
+    --text-2:        #d6d6d6;
+    --text-3:        #a0a0a0;
+    --border:        #3d3d3d;
+    --border-strong: #555555;
+    --accent:        #6264A7;
+    --accent-h:      #7577bc;
+    --accent-a:      #5557a0;
+    --accent-pale:   #2a2a40;
+    --accent-pale-a: #333355;
+    --disabled:      #444444;
+    --disabled-text: #666666;
+  }
+}
+
+/* ── Reset ────────────────────────────────────────────────────────────────── */
+
 * {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
 }
 
+/* ── Base ─────────────────────────────────────────────────────────────────── */
+
 body {
   width: 300px;
   font-family: 'Segoe UI', system-ui, sans-serif;
   font-size: 13px;
-  color: #242424;
-  background: #ffffff;
+  color: var(--text-1);
+  background: var(--bg);
 }
 
 .container {
@@ -19,11 +63,13 @@ body {
   gap: 14px;
 }
 
+/* ── Header ───────────────────────────────────────────────────────────────── */
+
 header {
   display: flex;
   align-items: center;
   gap: 10px;
-  border-bottom: 1px solid #e8e8e8;
+  border-bottom: 1px solid var(--border);
   padding-bottom: 12px;
 }
 
@@ -35,7 +81,7 @@ header {
 h1 {
   font-size: 14px;
   font-weight: 600;
-  color: #242424;
+  color: var(--text-1);
   flex: 1;
 }
 
@@ -45,18 +91,20 @@ h1 {
   border: none;
   font-size: 16px;
   line-height: 1;
-  color: #717171;
+  color: var(--text-3);
   cursor: pointer;
   padding: 3px 5px;
   border-radius: 4px;
   transition: background 0.1s, color 0.1s;
 }
 
-.settings-btn:hover { background: #f3f2f1; color: #242424; }
+.settings-btn:hover { background: var(--bg-hover); color: var(--text-1); }
+
+/* ── Settings panel ───────────────────────────────────────────────────────── */
 
 .settings-panel {
-  background: #f9f9f9;
-  border: 1px solid #e8e8e8;
+  background: var(--bg-alt);
+  border: 1px solid var(--border);
   border-radius: 6px;
   padding: 10px 12px;
 }
@@ -73,10 +121,12 @@ h1 {
 
 .setting-label {
   font-size: 12px;
-  color: #424242;
+  color: var(--text-2);
   line-height: 1.4;
   user-select: none;
 }
+
+/* ── Status ───────────────────────────────────────────────────────────────── */
 
 .status-area {
   display: flex;
@@ -93,12 +143,12 @@ h1 {
   flex-shrink: 0;
 }
 
-.status-icon.idle       { background: #d1d1d1; }
-.status-icon.ready      { background: #13a10e; }
-.status-icon.scraping   { background: #6264A7; animation: pulse 1.2s ease-in-out infinite; }
-.status-icon.done       { background: #13a10e; }
-.status-icon.error      { background: #d13438; }
-.status-icon.warning    { background: #f7630c; }
+.status-icon.idle     { background: var(--border-strong); }
+.status-icon.ready    { background: #13a10e; }
+.status-icon.scraping { background: var(--accent); animation: pulse 1.2s ease-in-out infinite; }
+.status-icon.done     { background: #13a10e; }
+.status-icon.error    { background: #d13438; }
+.status-icon.warning  { background: #f7630c; }
 
 @keyframes pulse {
   0%, 100% { opacity: 1; }
@@ -108,8 +158,10 @@ h1 {
 #status-text {
   flex: 1;
   line-height: 1.5;
-  color: #424242;
+  color: var(--text-2);
 }
+
+/* ── Progress ─────────────────────────────────────────────────────────────── */
 
 .progress-area {
   display: flex;
@@ -121,14 +173,14 @@ h1 {
 
 .progress-bar {
   height: 4px;
-  background: #e8e8e8;
+  background: var(--border);
   border-radius: 2px;
   overflow: hidden;
 }
 
 .progress-fill {
   height: 100%;
-  background: #6264A7;
+  background: var(--accent);
   border-radius: 2px;
   width: 0%;
   transition: width 0.3s ease;
@@ -136,9 +188,11 @@ h1 {
 
 .progress-text {
   font-size: 11px;
-  color: #717171;
+  color: var(--text-3);
   text-align: right;
 }
+
+/* ── Format selector ──────────────────────────────────────────────────────── */
 
 .format-row {
   display: flex;
@@ -148,14 +202,14 @@ h1 {
 
 .format-label {
   font-size: 12px;
-  color: #717171;
+  color: var(--text-3);
   white-space: nowrap;
 }
 
 .format-selector {
   flex: 1;
   display: flex;
-  border: 1px solid #d1d1d1;
+  border: 1px solid var(--border-strong);
   border-radius: 4px;
   overflow: hidden;
 }
@@ -163,21 +217,23 @@ h1 {
 .format-btn {
   flex: 1;
   padding: 6px;
-  background: #fff;
+  background: var(--bg);
   border: none;
-  border-right: 1px solid #d1d1d1;
+  border-right: 1px solid var(--border-strong);
   font-family: inherit;
   font-size: 12px;
   font-weight: 500;
-  color: #424242;
+  color: var(--text-2);
   cursor: pointer;
   transition: background 0.1s;
 }
 
-.format-btn:last-child          { border-right: none; }
-.format-btn.active              { background: #6264A7; color: #fff; }
-.format-btn:hover:not(.active):not(:disabled) { background: #f3f2f1; }
-.format-btn:disabled            { opacity: 0.45; cursor: not-allowed; }
+.format-btn:last-child                        { border-right: none; }
+.format-btn.active                            { background: var(--accent); color: #fff; }
+.format-btn:hover:not(.active):not(:disabled) { background: var(--bg-hover); }
+.format-btn:disabled                          { opacity: 0.45; cursor: not-allowed; }
+
+/* ── Action buttons ───────────────────────────────────────────────────────── */
 
 .action-row {
   display: flex;
@@ -187,9 +243,9 @@ h1 {
 .copy-btn {
   flex: 0 0 auto;
   padding: 9px 14px;
-  background: #ffffff;
-  color: #6264A7;
-  border: 1.5px solid #6264A7;
+  background: var(--bg);
+  color: var(--accent);
+  border: 1.5px solid var(--accent);
   border-radius: 4px;
   font-family: inherit;
   font-size: 13px;
@@ -199,14 +255,14 @@ h1 {
   white-space: nowrap;
 }
 
-.copy-btn:hover:not(:disabled) { background: #f0f0fa; }
-.copy-btn:active:not(:disabled) { background: #e0e0f5; }
-.copy-btn:disabled { border-color: #c8c8c8; color: #c8c8c8; cursor: not-allowed; }
+.copy-btn:hover:not(:disabled)  { background: var(--accent-pale); }
+.copy-btn:active:not(:disabled) { background: var(--accent-pale-a); }
+.copy-btn:disabled              { border-color: var(--disabled); color: var(--disabled-text); cursor: not-allowed; }
 
 .export-btn {
   flex: 1;
   padding: 9px 16px;
-  background: #6264A7;
+  background: var(--accent);
   color: #ffffff;
   border: none;
   border-radius: 4px;
@@ -217,10 +273,6 @@ h1 {
   transition: background 0.15s;
 }
 
-.export-btn:hover:not(:disabled) { background: #4f52a0; }
-.export-btn:active:not(:disabled) { background: #3d3f7d; }
-
-.export-btn:disabled {
-  background: #c8c8c8;
-  cursor: not-allowed;
-}
+.export-btn:hover:not(:disabled)  { background: var(--accent-h); }
+.export-btn:active:not(:disabled) { background: var(--accent-a); }
+.export-btn:disabled              { background: var(--disabled); cursor: not-allowed; }
