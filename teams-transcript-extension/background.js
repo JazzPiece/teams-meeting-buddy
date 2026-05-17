@@ -29,14 +29,17 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
 async function handleScrape(tabId, format, merge) {
   try {
-    const timeout = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Extraction timed out. Try reopening the transcript panel.')), 10000)
-    );
+    sendToPopup({ type: 'status', message: 'Scrolling to load all entries…' });
+    // Soft timeout — if scroll hangs we still attempt extraction with whatever is loaded
+    await Promise.race([
+      chrome.scripting.executeScript({ target: { tabId }, world: 'MAIN', func: scrollToLoadAllEntries }),
+      new Promise(r => setTimeout(r, 15000)),
+    ]).catch(() => {});
 
-    // Run fiber extraction in the page's main JS world — has full React access
+    sendToPopup({ type: 'status', message: 'Extracting transcript…' });
     const results = await Promise.race([
       chrome.scripting.executeScript({ target: { tabId }, world: 'MAIN', func: extractTranscriptFromFiber }),
-      timeout
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Extraction timed out. Try reopening the transcript panel.')), 10000)),
     ]);
 
     let items = results[0]?.result;
@@ -81,12 +84,16 @@ async function handleScrape(tabId, format, merge) {
 
 async function handleCopy(tabId, merge) {
   try {
-    const timeout = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Extraction timed out. Try reopening the transcript panel.')), 10000)
-    );
+    sendToPopup({ type: 'status', message: 'Scrolling to load all entries…' });
+    await Promise.race([
+      chrome.scripting.executeScript({ target: { tabId }, world: 'MAIN', func: scrollToLoadAllEntries }),
+      new Promise(r => setTimeout(r, 15000)),
+    ]).catch(() => {});
+
+    sendToPopup({ type: 'status', message: 'Extracting transcript…' });
     const results = await Promise.race([
       chrome.scripting.executeScript({ target: { tabId }, world: 'MAIN', func: extractTranscriptFromFiber }),
-      timeout
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Extraction timed out. Try reopening the transcript panel.')), 10000)),
     ]);
     let items = results[0]?.result;
     if (!items || items.length === 0) {
@@ -110,6 +117,40 @@ function buildPlainText(cues) {
     const speaker = item.speakerDisplayName ? `${item.speakerDisplayName} [${ts}]` : `[${ts}]`;
     return `${speaker}\n${item.text}`;
   }).join('\n\n');
+}
+
+// ── Scroll — THIS FUNCTION RUNS IN THE PAGE'S MAIN WORLD ─────────────────────
+// Scrolls the transcript panel to the bottom so Teams lazy-loads all entries,
+// then returns. Must be self-contained.
+
+async function scrollToLoadAllEntries() {
+  const SELECTORS = [
+    '[class*="focusZoneWithAutoScroll"]',
+    '[class*="transcriptPane"]',
+    '[class*="scrollable"]',
+    '.ms-ScrollablePane--contentContainer',
+    '.ms-List',
+  ];
+
+  let container = null;
+  for (const sel of SELECTORS) {
+    for (const el of document.querySelectorAll(sel)) {
+      if (el.scrollHeight > el.clientHeight + 20) { container = el; break; }
+    }
+    if (container) break;
+  }
+  if (!container) return false;
+
+  let prevHeight = 0;
+  let stable = 0;
+  for (let i = 0; i < 40; i++) {
+    container.scrollTop = container.scrollHeight;
+    await new Promise(r => setTimeout(r, 250));
+    const h = container.scrollHeight;
+    if (h === prevHeight) { if (++stable >= 3) break; }
+    else { stable = 0; prevHeight = h; }
+  }
+  return true;
 }
 
 // ── Fiber extraction — THIS FUNCTION RUNS IN THE PAGE'S MAIN WORLD ───────────

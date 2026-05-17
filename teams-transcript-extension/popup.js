@@ -71,7 +71,9 @@ function hideProgress() {
 // ── Message handler (from background.js) ─────────────────────────────────────
 
 chrome.runtime.onMessage.addListener((message) => {
-  if (message.type === 'progress') {
+  if (message.type === 'status') {
+    setStatus('scraping', message.message);
+  } else if (message.type === 'progress') {
     setStatus('scraping', 'Exporting transcript...');
     showProgress(message.captured, message.total);
   } else if (message.type === 'done') {
