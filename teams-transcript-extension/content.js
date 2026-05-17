@@ -10,8 +10,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 function handlePing(sendResponse) {
-  if (document.querySelector('[class*="entryText"]')) {
-    sendResponse({ status: 'ready' });
+  const entries = document.querySelectorAll('[class*="entryText"]');
+  if (entries.length > 0) {
+    sendResponse({ status: 'ready', count: entries.length });
     return;
   }
   // Multiple signals because SharePoint URL structure and DOM classes vary across tenants/Teams versions

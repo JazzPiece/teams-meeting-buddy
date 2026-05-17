@@ -135,7 +135,8 @@ async function init() {
     const response = await chrome.tabs.sendMessage(tab.id, { action: 'ping' });
 
     if (response.status === 'ready') {
-      setStatus('ready', 'Transcript panel detected. Ready to export.');
+      const countNote = response.count ? ` · ${response.count} visible` : '';
+      setStatus('ready', `Transcript ready${countNote}. Click Export to load all.`);
       exportBtn.disabled = false;
       copyBtn.disabled = false;
     } else if (response.status === 'no-transcript') {
