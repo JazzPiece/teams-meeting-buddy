@@ -1,10 +1,10 @@
 # Privacy Policy — Teams Transcript Exporter
 
-**Last updated: April 11, 2026**
+**Last updated: May 24, 2026**
 
 ## Overview
 
-Teams Transcript Exporter is a browser extension that exports Microsoft Teams meeting transcripts as `.vtt` files directly within your browser. This privacy policy explains how the extension handles data.
+Teams Transcript Exporter is a browser extension that exports Microsoft Teams meeting transcripts from SharePoint and Teams recording pages. This policy explains how the extension handles data.
 
 ## Data Collection
 
@@ -17,19 +17,23 @@ Teams Transcript Exporter is a browser extension that exports Microsoft Teams me
 
 ## How the Extension Works
 
-When you click "Export Transcript", the extension reads the transcript text already loaded in your browser's memory (via the Teams/SharePoint recording player) and saves it as a `.vtt` file directly to your local device. All processing happens entirely within your browser.
+When you click Export (or press Alt+Shift+T), the extension reads the transcript data already loaded in your browser's memory via the Teams/SharePoint recording player and saves the result as a local file (VTT, SRT, DOCX, or TXT). All processing happens entirely within your browser. Transcript content never leaves your device.
 
 ## Permissions
 
-The extension requests the following permissions solely to perform its core function:
-
 | Permission | Reason |
 |---|---|
-| `activeTab` | Read the current tab to detect the transcript panel |
-| `scripting` | Run the transcript extraction on the active Teams/SharePoint page |
-| `downloads` | Save the exported `.vtt` file to your device |
+| `activeTab` | Detect the transcript panel on the current tab |
+| `scripting` | Inject the extraction script into the Teams/SharePoint page to read transcript data from the React component state |
+| `downloads` | Save the exported transcript file to your local device |
+| `storage` | Persist user preferences (last-used export format, merge setting) in local browser storage — data never leaves the device |
 | `https://*.sharepoint.com/*` | Access Teams recording pages hosted on SharePoint |
-| `https://teams.microsoft.com/*` | Access Teams recording pages hosted on teams.microsoft.com |
+| `https://teams.microsoft.com/*` | Access Teams recording pages on teams.microsoft.com |
+| `https://*.teams.microsoft.com/*` | Access Teams recording pages on subdomain variants |
+
+## Remote Code
+
+This extension does not load or execute any remote code. All JavaScript is bundled within the extension package.
 
 ## Third Parties
 
