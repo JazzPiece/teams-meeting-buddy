@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Teams Transcript Exporter",
   "version": "1.2.0",
-  "description": "Export Teams meeting transcripts as VTT, SRT, DOCX, or compact AI text. Supports copy to clipboard, dark mode, and keyboard shortcut (Alt+Shift+T).",
+  "description": "Export Teams meeting transcripts as VTT, SRT, DOCX or compact AI text. Dark mode, copy to clipboard, Alt+Shift+T shortcut.",
   "permissions": ["activeTab", "scripting", "downloads", "storage"],
   "host_permissions": [
     "https://*.sharepoint.com/*",
