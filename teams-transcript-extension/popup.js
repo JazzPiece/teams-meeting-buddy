@@ -57,10 +57,11 @@ exportBtn.addEventListener('click', async () => {
 async function init() {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    const response = await chrome.tabs.sendMessage(tab.id, { action: 'ping' });
+    const response = await chrome.runtime.sendMessage({ action: 'detect', tabId: tab.id });
 
     if (response.status === 'ready') {
-      setStatus('ready', 'Transcript panel detected. Ready to export.');
+      const countNote = response.count ? ` · ${response.count} visible` : '';
+      setStatus('ready', `Transcript panel detected${countNote}. Ready to export.`);
       exportBtn.disabled = false;
     } else if (response.status === 'no-transcript') {
       setStatus('warning', 'Open the transcript panel first, then click Export.');

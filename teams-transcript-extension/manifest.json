@@ -7,7 +7,8 @@
   "host_permissions": [
     "https://*.sharepoint.com/*",
     "https://teams.microsoft.com/*",
-    "https://*.teams.microsoft.com/*"
+    "https://*.teams.microsoft.com/*",
+    "https://teams.cloud.microsoft/*"
   ],
   "action": {
     "default_popup": "popup.html",
@@ -22,9 +23,12 @@
       "matches": [
         "https://*.sharepoint.com/*",
         "https://teams.microsoft.com/*",
-        "https://*.teams.microsoft.com/*"
+        "https://*.teams.microsoft.com/*",
+        "https://teams.cloud.microsoft/*"
       ],
-      "js": ["content.js"]
+      "js": ["content.js"],
+      "all_frames": true,
+      "match_about_blank": true
     }
   ],
   "background": {

@@ -10,13 +10,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 function handlePing(sendResponse) {
-  if (document.querySelector('[class*="entryText"]')) {
-    sendResponse({ status: 'ready' });
+  const entries = document.querySelectorAll('[class*="entryText"]');
+  if (entries.length > 0) {
+    sendResponse({
+      status: 'ready',
+      count: entries.length,
+      hasTranscriptContainer: document.querySelector('#OneTranscript') !== null
+    });
     return;
   }
   const isRecordingPage =
     location.href.includes('stream.aspx') ||
     location.href.includes('/personal/') ||
+    document.querySelector('#xplatIframe') !== null ||
+    document.querySelector('[data-tid="Transcript"]') !== null ||
     document.querySelector('.ms-List') !== null ||
     document.querySelector('[class*="focusZoneWithAutoScroll"]') !== null;
   sendResponse({ status: isRecordingPage ? 'no-transcript' : 'wrong-page' });

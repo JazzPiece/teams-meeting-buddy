@@ -9,6 +9,12 @@ chrome.runtime.onInstalled.addListener(() => {
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.action === 'detect') {
+    findTranscriptFrame(message.tabId)
+      .then(sendResponse)
+      .catch(err => sendResponse({ status: 'error', message: safeErrorMessage(err, 'Could not inspect this page.') }));
+    return true;
+  }
   if (message.action === 'scrape') {
     handleScrape(message.tabId);
     sendResponse({ ok: true });
@@ -16,13 +22,94 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
+async function findTranscriptFrame(tabId) {
+  const results = await chrome.scripting.executeScript({
+    target: { tabId, allFrames: true },
+    func: detectTranscriptPage
+  });
+
+  const reports = results
+    .filter(result => result.result)
+    .map(result => ({ frameId: result.frameId, ...result.result }));
+  const ready = reports
+    .filter(report => report.status === 'ready')
+    .sort((a, b) =>
+      Number(b.hasTranscriptContainer) - Number(a.hasTranscriptContainer) ||
+      b.count - a.count ||
+      a.frameId - b.frameId
+    )[0];
+  const metadataReports = [...reports].sort((a, b) =>
+    Number(b.frameId === 0) - Number(a.frameId === 0) || a.frameId - b.frameId
+  );
+  const metadata = {
+    meetingDateText: metadataReports.find(report => report.meetingDateText)?.meetingDateText || '',
+    meetingSubject: metadataReports.find(report => report.meetingSubject)?.meetingSubject || ''
+  };
+
+  if (ready) return { ...ready, ...metadata };
+  if (reports.some(report => report.status === 'no-transcript')) {
+    return { status: 'no-transcript' };
+  }
+  return { status: 'wrong-page' };
+}
+
+function detectTranscriptPage() {
+  function readMeetingMetadata() {
+    const dateElement = document.querySelector('[data-tid="intelligent-recap-header"] span[dir="auto"]');
+    const titleSelector = '[id^="title-chat-list-item_"][role="text"]';
+    const selectedScope = [
+      '[aria-selected="true"]',
+      '[aria-current="true"]',
+      '[data-is-selected="true"]',
+      '[data-selected="true"]'
+    ].join(', ');
+    const titleCandidates = [...document.querySelectorAll(titleSelector)];
+    const selectedTitle = titleCandidates.find(element =>
+      element.matches(selectedScope) || element.closest(selectedScope)
+    );
+    const titleElement = selectedTitle || (titleCandidates.length === 1 ? titleCandidates[0] : null);
+    return {
+      meetingDateText: dateElement?.textContent?.trim() || '',
+      meetingSubject: titleElement?.textContent?.trim() || ''
+    };
+  }
+
+  const metadata = readMeetingMetadata();
+  const entries = document.querySelectorAll('[class*="entryText"]');
+  if (entries.length > 0) {
+    return {
+      status: 'ready',
+      count: entries.length,
+      hasTranscriptContainer: document.querySelector('#OneTranscript') !== null,
+      ...metadata
+    };
+  }
+
+  const isRecordingPage =
+    location.href.includes('stream.aspx') ||
+    location.href.includes('/personal/') ||
+    document.querySelector('#xplatIframe') !== null ||
+    document.querySelector('[data-tid="Transcript"]') !== null ||
+    document.querySelector('.ms-List') !== null ||
+    document.querySelector('[class*="focusZoneWithAutoScroll"]') !== null;
+  return { status: isRecordingPage ? 'no-transcript' : 'wrong-page', ...metadata };
+}
+
 // ── Scrape ────────────────────────────────────────────────────────────────────
 
 async function handleScrape(tabId) {
   try {
+    const frame = await findTranscriptFrame(tabId);
+    if (frame.status !== 'ready') {
+      throw new Error(frame.status === 'no-transcript'
+        ? 'Open the transcript panel first, then try again.'
+        : 'Navigate to a Teams meeting recording first.');
+    }
+    const target = { tabId, frameIds: [frame.frameId] };
+
     // Run fiber extraction in the page's main JS world — has full React access
     const results = await chrome.scripting.executeScript({
-      target: { tabId },
+      target,
       world: 'MAIN',
       func: extractTranscriptFromFiber
     });
@@ -38,17 +125,47 @@ async function handleScrape(tabId) {
 
     const vtt      = buildVtt(items);
     const tab      = await chrome.tabs.get(tabId);
-    const filename = buildFilename(tab.title || '');
+    const filename = buildFilename(frame, tab.title || '', 'vtt');
 
-    // Download using a data URL — works from service worker without blob/URL APIs
-    const dataUrl = 'data:text/vtt;charset=utf-8,' + encodeURIComponent(vtt);
-    await chrome.downloads.download({ url: dataUrl, filename, saveAs: false });
+    await downloadPayload(vtt, 'text/vtt;charset=utf-8', filename);
 
     sendToPopup({ type: 'done', filename, count: items.length });
 
   } catch (err) {
-    sendToPopup({ type: 'error', message: err.message || 'Unknown error during export.' });
+    sendToPopup({
+      type: 'error',
+      message: safeErrorMessage(err, 'Export failed. Firefox could not start the download. Try again.')
+    });
   }
+}
+
+async function downloadPayload(payload, mimeType, filename) {
+  if (typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function' && typeof Blob === 'function') {
+    const objectUrl = URL.createObjectURL(new Blob([payload], { type: mimeType }));
+    try {
+      return await chrome.downloads.download({ url: objectUrl, filename, saveAs: false });
+    } finally {
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
+    }
+  }
+
+  const bytes = typeof payload === 'string'
+    ? new TextEncoder().encode(payload)
+    : payload instanceof Uint8Array
+      ? payload
+      : new Uint8Array(payload);
+  let binary = '';
+  for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+  }
+  const dataUrl = `data:${mimeType};base64,${btoa(binary)}`;
+  return chrome.downloads.download({ url: dataUrl, filename, saveAs: false });
+}
+
+function safeErrorMessage(err, fallback) {
+  const message = typeof err?.message === 'string' ? err.message.trim() : '';
+  if (!message || message.length > 300 || /(?:data|blob):/i.test(message)) return fallback;
+  return message.replace(/https?:\/\/\S+/gi, 'the current page').slice(0, 300);
 }
 
 // ── Fiber extraction — THIS FUNCTION RUNS IN THE PAGE'S MAIN WORLD ───────────
@@ -138,15 +255,57 @@ function toVTTTime(sec) {
 
 // ── Filename ──────────────────────────────────────────────────────────────────
 
-function buildFilename(title) {
-  title = title.replace(/\s*[-–]\s*(Microsoft\s+)?Stream\s*$/i, '');
-  title = title.replace(/-\d{8}_\d{6}-Meeting Recording/i, '');
-  title = title.trim().replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '');
-  if (!title) {
-    const now = new Date();
-    title = `teams_transcript_${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+function buildFilename(metadata, fallbackTitle, ext = 'vtt', fallbackDate = new Date()) {
+  const date = formatMeetingDate(metadata?.meetingDateText, fallbackTitle, fallbackDate);
+  const extension = String(ext).toLowerCase().replace(/[^a-z0-9]/g, '') || 'vtt';
+  let subject = metadata?.meetingSubject || cleanDocumentTitle(fallbackTitle) || 'Teams Transcript';
+  subject = sanitizeFilenamePart(subject);
+
+  const maxLength = 180;
+  const fixedLength = date.length + extension.length + 4;
+  subject = subject.slice(0, Math.max(1, maxLength - fixedLength)).replace(/[ .]+$/g, '');
+  return `${date} - ${subject}.${extension}`;
+}
+
+function formatMeetingDate(dateText, fallbackTitle, fallbackDate) {
+  const source = `${dateText || ''} ${fallbackTitle || ''}`;
+  const compact = source.match(/\b(20\d{2})(\d{2})(\d{2})[_-]\d{6}\b/);
+  if (compact) return `${compact[1]}${compact[2]}${compact[3]}`;
+
+  const iso = source.match(/\b(20\d{2})[-/](\d{1,2})[-/](\d{1,2})\b/);
+  if (iso) return `${iso[1]}${String(iso[2]).padStart(2, '0')}${String(iso[3]).padStart(2, '0')}`;
+
+  const months = {
+    january: 1, february: 2, march: 3, april: 4, may: 5, june: 6,
+    july: 7, august: 8, september: 9, october: 10, november: 11, december: 12
+  };
+  const written = source.match(/\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2}),\s+(20\d{2})\b/i);
+  if (written) {
+    return `${written[3]}${String(months[written[1].toLowerCase()]).padStart(2, '0')}${String(written[2]).padStart(2, '0')}`;
   }
-  return `${title}.vtt`;
+
+  const date = fallbackDate instanceof Date && !Number.isNaN(fallbackDate.getTime())
+    ? fallbackDate
+    : new Date();
+  return `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function cleanDocumentTitle(title) {
+  const cleaned = String(title || '')
+    .replace(/\s*[-–|]\s*(Microsoft\s+)?Stream\s*$/i, '')
+    .replace(/\s*[-–|]\s*Microsoft Teams\s*$/i, '')
+    .replace(/-\d{8}_\d{6}-Meeting Recording/i, '')
+    .replace(/\bMeeting Recording\b/gi, '')
+    .trim();
+  return /^(Microsoft Teams|Teams|Stream)$/i.test(cleaned) ? '' : cleaned;
+}
+
+function sanitizeFilenamePart(value) {
+  return String(value || '')
+    .replace(/[<>:"/\\|?*\u0000-\u001F]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/[ .]+$/g, '') || 'Teams Transcript';
 }
 
 // ── Messaging ─────────────────────────────────────────────────────────────────
