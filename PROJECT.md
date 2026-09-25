@@ -24,14 +24,14 @@ one button click. No permissions needed, no server, no IT involvement.
 ## The User Flow
 
 1. User clicks a meeting recording link in Teams chat
-   (e.g. "QGenda and Infor Integration Spec Review-20260312_104558-Meeting Recording.mp4")
+   (e.g. "Project Kickoff-20260312_104558-Meeting Recording.mp4")
 2. Teams opens the recording player with the transcript panel on the right
 3. User clicks the extension button in the browser toolbar
 4. Extension scrapes all transcript entries from the DOM
 5. Extension auto-scrolls the transcript panel to capture everything
 6. Extension formats the data as a proper `.vtt` file
 7. File downloads automatically to the user's Downloads folder
-   (e.g. "QGenda_and_Infor_Integration_Spec_Review_20260312.vtt")
+   (e.g. "Project_Kickoff_20260312.vtt")
 
 ---
 
@@ -43,7 +43,7 @@ changes between Teams updates but the prefix is stable.
 
 ### Speaker Name ✅ Confirmed
 ```html
-<span class="itemDisplayName-588">Stacy Haag</span>
+<span class="itemDisplayName-588">Alex Morgan</span>
 ```
 - Target selector: `[class*="itemDisplayName"]`
 
@@ -109,10 +109,10 @@ Standard WebVTT format with speaker names included:
 WEBVTT
 
 00:00:05.000 --> 00:00:09.000
-<v Stacy Haag>Well, good morning, folks. I think we've got most folks on now.
+<v Alex Morgan>Well, good morning, folks. I think we've got most folks on now.
 
 00:00:10.000 --> 00:00:15.000
-<v Raquel Escobedo>Thanks Stacy, I wanted to cover the integration spec first.
+<v Jordan Lee>Thanks Alex, let's start with the first agenda item.
 ```
 
 - Timestamps: convert from `M:SS` or `H:MM:SS` → `HH:MM:SS.000`
@@ -144,7 +144,7 @@ teams-transcript-extension/
 ## manifest.json Requirements
 
 > **Important:** Teams meeting recordings open in **SharePoint/Stream**, not teams.microsoft.com.
-> Example URL: `https://yumaregionalorg-my.sharepoint.com/personal/.../_layouts/15/stream.aspx?...`
+> Example URL: `https://contoso-my.sharepoint.com/personal/.../_layouts/15/stream.aspx?...`
 > Pattern: `https://{tenant}-my.sharepoint.com/*`
 > The content script must match `*.sharepoint.com`, not `teams.microsoft.com`.
 
@@ -303,7 +303,7 @@ These are planned for later. Document here for awareness:
 ### AI Chat Interface
 - After `.vtt` is exported, offer a chat panel inside the popup
 - Load the transcript as context
-- User can ask: "What were the action items?" / "What did Stacy say about X?"
+- User can ask: "What were the action items?" / "What did Alex say about X?"
 - Use Groq API (free) or Claude API for responses
 - All transcript data stays local — only the query + relevant excerpt sent to API
 

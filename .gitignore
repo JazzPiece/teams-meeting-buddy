@@ -10,16 +10,28 @@ desktop.ini
 *.swo
 *~
 
-# Claude Code internal
+# AI assistant local state (permissions, session data)
 .claude/
+.cursor/
+.aider*
 
-# Working/scratch scripts (not part of the extension)
+# Working/scratch files (not part of the extension)
 teams-transcript-extension/working.js
+*.orig
+*.rej
+*.bak
+*.tmp
 
-# Chrome extension build artifacts
+# Browser extension packages and signing material
 *.crx
 *.pem
+*.xpi
 *.zip
+*.pfx
+*.p12
+web-ext-artifacts/
+build/
+dist/
 
 # Node (if tooling is added later)
 node_modules/
@@ -34,10 +46,29 @@ yarn-error.log*
 .env.*
 *.key
 *.secret
+*.p8
+id_rsa*
+secrets.*
 
 # Logs
 *.log
 
-# Test output
+# Exported transcripts and other test output. These contain real meeting
+# content and real names. Never commit them. Un-ignore a specific file with
+# !name if one is ever genuinely needed.
 coverage/
 *.vtt
+*.srt
+*.docx
+*.txt
+*Meeting_Recording*
+*Meeting Recording*
+
+# Stray screenshots and captures at the repo root. Store assets live in
+# store-assets/ and are added deliberately.
+/image*.png
+/Screenshot*.png
+/*.jpg
+/*.jpeg
+/*.gif
+/*.mp4
