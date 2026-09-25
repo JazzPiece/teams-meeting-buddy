@@ -10,15 +10,19 @@ const copyBtn     = document.getElementById('copy-btn');
 const settingsBtn = document.getElementById('settings-btn');
 const settingsPanel = document.getElementById('settings-panel');
 const mergeToggle = document.getElementById('merge-toggle');
+const datedToggle = document.getElementById('dated-toggle');
 
 let selectedFormat = 'vtt';
 let mergeEnabled   = false;
+let datedFilenames = false;
 
 // ── Settings ──────────────────────────────────────────────────────────────────
 
-chrome.storage.local.get(['mergeEnabled', 'savedFormat'], (result) => {
+chrome.storage.local.get(['mergeEnabled', 'savedFormat', 'datedFilenames'], (result) => {
   mergeEnabled = !!result.mergeEnabled;
   mergeToggle.checked = mergeEnabled;
+  datedFilenames = !!result.datedFilenames;
+  datedToggle.checked = datedFilenames;
   if (result.savedFormat) {
     selectedFormat = result.savedFormat;
     document.querySelectorAll('.format-btn').forEach(b => b.classList.remove('active'));
@@ -33,6 +37,11 @@ settingsBtn.addEventListener('click', () => {
 mergeToggle.addEventListener('change', () => {
   mergeEnabled = mergeToggle.checked;
   chrome.storage.local.set({ mergeEnabled });
+});
+
+datedToggle.addEventListener('change', () => {
+  datedFilenames = datedToggle.checked;
+  chrome.storage.local.set({ datedFilenames });
 });
 
 // ── Format selector ───────────────────────────────────────────────────────────
@@ -124,7 +133,7 @@ exportBtn.addEventListener('click', async () => {
 
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   // Send to background — it runs fiber extraction in the page's main world
-  chrome.runtime.sendMessage({ action: 'scrape', tabId: tab.id, format: selectedFormat, merge: mergeEnabled });
+  chrome.runtime.sendMessage({ action: 'scrape', tabId: tab.id, format: selectedFormat, merge: mergeEnabled, datedFilenames });
 });
 
 // ── Init ──────────────────────────────────────────────────────────────────────

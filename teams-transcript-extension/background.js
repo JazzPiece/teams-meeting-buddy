@@ -8,13 +8,13 @@ chrome.commands.onCommand.addListener(async (command) => {
   if (command !== 'export-transcript') return;
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab) return;
-  const stored = await chrome.storage.local.get(['savedFormat', 'mergeEnabled']);
-  handleScrape(tab.id, stored.savedFormat || 'vtt', !!stored.mergeEnabled);
+  const stored = await chrome.storage.local.get(['savedFormat', 'mergeEnabled', 'datedFilenames']);
+  handleScrape(tab.id, stored.savedFormat || 'vtt', !!stored.mergeEnabled, !!stored.datedFilenames);
 });
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.action === 'scrape') {
-    handleScrape(message.tabId, message.format || 'vtt', !!message.merge);
+    handleScrape(message.tabId, message.format || 'vtt', !!message.merge, !!message.datedFilenames);
     sendResponse({ ok: true });
     return true;
   }
@@ -50,7 +50,7 @@ async function loadAndExtract(tabId) {
     .sort((a, b) => b.length - a.length)[0] || null;
 }
 
-async function handleScrape(tabId, format, merge) {
+async function handleScrape(tabId, format, merge, datedFilenames) {
   try {
     let items = await loadAndExtract(tabId);
 
@@ -65,7 +65,10 @@ async function handleScrape(tabId, format, merge) {
 
     const tab = await chrome.tabs.get(tabId);
     const extMap = { vtt: 'vtt', srt: 'srt', docx: 'docx', compact: 'txt' };
-    const filename = buildFilename(tab.title || '', extMap[format] || format);
+    const ext = extMap[format] || format;
+    const filename = datedFilenames
+      ? buildDatedFilename(await readMeetingMetadata(tabId), tab.title || '', ext)
+      : buildFilename(tab.title || '', ext);
 
     if (format === 'docx') {
       await downloadPayload(buildDocx(items), 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', filename);
@@ -411,6 +414,88 @@ function buildFilename(title, ext = 'vtt') {
     title = `teams_transcript_${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
   }
   return `${title}.${ext}`;
+}
+
+// ── Dated filename (opt-in setting) — adapted from #3 by @rob-v-k ────────────
+// "YYYYMMDD - <meeting subject>.<ext>", using the Teams Recap header/chat title
+// when present. Needed on teams.cloud.microsoft, where the tab title is just
+// "Microsoft Teams".
+
+async function readMeetingMetadata(tabId) {
+  try {
+    const results = await chrome.scripting.executeScript({
+      target: { tabId, allFrames: true },
+      func: meetingMetadataInFrame,
+    });
+    // Top frame first — the chat list and recap header live there
+    const reports = results
+      .filter(r => r?.result)
+      .sort((a, b) => Number(b.frameId === 0) - Number(a.frameId === 0) || a.frameId - b.frameId)
+      .map(r => r.result);
+    return {
+      meetingDateText: reports.find(r => r.meetingDateText)?.meetingDateText || '',
+      meetingSubject:  reports.find(r => r.meetingSubject)?.meetingSubject || '',
+    };
+  } catch {
+    return {};
+  }
+}
+
+// Runs in each frame — must be self-contained (Chrome serializes it)
+function meetingMetadataInFrame() {
+  const dateElement = document.querySelector('[data-tid="intelligent-recap-header"] span[dir="auto"]');
+  const selectedScope = '[aria-selected="true"], [aria-current="true"], [data-is-selected="true"], [data-selected="true"]';
+  const titles = [...document.querySelectorAll('[id^="title-chat-list-item_"][role="text"]')];
+  const selected = titles.find(el => el.matches(selectedScope) || el.closest(selectedScope));
+  const titleElement = selected || (titles.length === 1 ? titles[0] : null);
+  return {
+    meetingDateText: dateElement?.textContent?.trim() || '',
+    meetingSubject:  titleElement?.textContent?.trim() || '',
+  };
+}
+
+function buildDatedFilename(metadata, fallbackTitle, ext = 'vtt', fallbackDate = new Date()) {
+  const date = formatMeetingDate(metadata?.meetingDateText, fallbackTitle, fallbackDate);
+  let subject = sanitizeFilenamePart(metadata?.meetingSubject || cleanDocumentTitle(fallbackTitle) || 'Teams Transcript');
+  // Keep the whole name under 180 chars (Windows path limits)
+  subject = subject.slice(0, Math.max(1, 180 - date.length - ext.length - 4)).replace(/[ .]+$/g, '');
+  return `${date} - ${subject}.${ext}`;
+}
+
+function formatMeetingDate(dateText, fallbackTitle, fallbackDate) {
+  const pad = n => String(n).padStart(2, '0');
+  const source = `${dateText || ''} ${fallbackTitle || ''}`;
+
+  const compact = source.match(/\b(20\d{2})(\d{2})(\d{2})[_-]\d{6}\b/);   // Stream "-20260914_090000-"
+  if (compact) return `${compact[1]}${compact[2]}${compact[3]}`;
+
+  const iso = source.match(/\b(20\d{2})[-/](\d{1,2})[-/](\d{1,2})\b/);
+  if (iso) return `${iso[1]}${pad(iso[2])}${pad(iso[3])}`;
+
+  const months = ['january', 'february', 'march', 'april', 'may', 'june',
+    'july', 'august', 'september', 'october', 'november', 'december'];
+  const written = source.match(/\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2}),\s+(20\d{2})\b/i);
+  if (written) return `${written[3]}${pad(months.indexOf(written[1].toLowerCase()) + 1)}${pad(written[2])}`;
+
+  return `${fallbackDate.getFullYear()}${pad(fallbackDate.getMonth() + 1)}${pad(fallbackDate.getDate())}`;
+}
+
+function cleanDocumentTitle(title) {
+  const cleaned = String(title || '')
+    .replace(/\s*[-–|]\s*(Microsoft\s+)?Stream\s*$/i, '')
+    .replace(/\s*[-–|]\s*Microsoft Teams\s*$/i, '')
+    .replace(/-\d{8}_\d{6}-Meeting Recording/i, '')
+    .replace(/\bMeeting Recording\b/gi, '')
+    .trim();
+  return /^(Microsoft Teams|Teams|Stream)$/i.test(cleaned) ? '' : cleaned;
+}
+
+function sanitizeFilenamePart(value) {
+  return String(value || '')
+    .replace(/[<>:"/\\|?*\u0000-\u001F]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/[ .]+$/g, '') || 'Teams Transcript';
 }
 
 // ── DOCX builder ──────────────────────────────────────────────────────────────
