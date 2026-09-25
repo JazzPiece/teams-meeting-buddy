@@ -27,22 +27,32 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
 // ── Scrape ────────────────────────────────────────────────────────────────────
 
+// Scrolls + extracts across every frame. On Stream recording pages the transcript
+// renders inside the player's #xplatIframe, so top-frame-only injection finds nothing.
+async function loadAndExtract(tabId) {
+  sendToPopup({ type: 'status', message: 'Scrolling to load all entries…' });
+  // Soft timeout — if scroll hangs we still attempt extraction with whatever is loaded
+  await Promise.race([
+    chrome.scripting.executeScript({ target: { tabId, allFrames: true }, world: 'MAIN', func: scrollToLoadAllEntries }),
+    new Promise(r => setTimeout(r, 15000)),
+  ]).catch(() => {});
+
+  sendToPopup({ type: 'status', message: 'Extracting transcript…' });
+  const results = await Promise.race([
+    chrome.scripting.executeScript({ target: { tabId, allFrames: true }, world: 'MAIN', func: extractTranscriptFromFiber }),
+    new Promise((_, reject) => setTimeout(() => reject(new Error('Extraction timed out. Try reopening the transcript panel.')), 10000)),
+  ]);
+
+  // Frames that have no transcript return null — keep the richest one
+  return results
+    .map(r => r?.result)
+    .filter(items => items && items.length)
+    .sort((a, b) => b.length - a.length)[0] || null;
+}
+
 async function handleScrape(tabId, format, merge) {
   try {
-    sendToPopup({ type: 'status', message: 'Scrolling to load all entries…' });
-    // Soft timeout — if scroll hangs we still attempt extraction with whatever is loaded
-    await Promise.race([
-      chrome.scripting.executeScript({ target: { tabId }, world: 'MAIN', func: scrollToLoadAllEntries }),
-      new Promise(r => setTimeout(r, 15000)),
-    ]).catch(() => {});
-
-    sendToPopup({ type: 'status', message: 'Extracting transcript…' });
-    const results = await Promise.race([
-      chrome.scripting.executeScript({ target: { tabId }, world: 'MAIN', func: extractTranscriptFromFiber }),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('Extraction timed out. Try reopening the transcript panel.')), 10000)),
-    ]);
-
-    let items = results[0]?.result;
+    let items = await loadAndExtract(tabId);
 
     if (!items || items.length === 0) {
       sendToPopup({ type: 'error', message: 'Could not read transcript from React state. Make sure the transcript panel is open and fully loaded.' });
@@ -84,18 +94,7 @@ async function handleScrape(tabId, format, merge) {
 
 async function handleCopy(tabId, merge) {
   try {
-    sendToPopup({ type: 'status', message: 'Scrolling to load all entries…' });
-    await Promise.race([
-      chrome.scripting.executeScript({ target: { tabId }, world: 'MAIN', func: scrollToLoadAllEntries }),
-      new Promise(r => setTimeout(r, 15000)),
-    ]).catch(() => {});
-
-    sendToPopup({ type: 'status', message: 'Extracting transcript…' });
-    const results = await Promise.race([
-      chrome.scripting.executeScript({ target: { tabId }, world: 'MAIN', func: extractTranscriptFromFiber }),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('Extraction timed out. Try reopening the transcript panel.')), 10000)),
-    ]);
-    let items = results[0]?.result;
+    let items = await loadAndExtract(tabId);
     if (!items || items.length === 0) {
       sendToPopup({ type: 'error', message: 'Could not read transcript. Make sure the transcript panel is open.' });
       return;

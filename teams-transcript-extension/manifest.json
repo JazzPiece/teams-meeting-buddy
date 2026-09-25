@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Teams Transcript Exporter",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Export Teams meeting transcripts as VTT, SRT, DOCX or compact AI text. Dark mode, copy to clipboard, Alt+Shift+T shortcut.",
   "permissions": ["activeTab", "scripting", "downloads", "storage"],
   "host_permissions": [
@@ -17,16 +17,6 @@
       "128": "icons/icon128.png"
     }
   },
-  "content_scripts": [
-    {
-      "matches": [
-        "https://*.sharepoint.com/*",
-        "https://teams.microsoft.com/*",
-        "https://*.teams.microsoft.com/*"
-      ],
-      "js": ["content.js"]
-    }
-  ],
   "commands": {
     "export-transcript": {
       "suggested_key": { "default": "Alt+Shift+T", "mac": "Alt+Shift+T" },
@@ -34,7 +24,8 @@
     }
   },
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "background.js",
+    "scripts": ["background.js"]
   },
   "icons": {
     "16": "icons/icon16.png",

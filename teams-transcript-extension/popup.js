@@ -129,10 +129,33 @@ exportBtn.addEventListener('click', async () => {
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 
+// Runs in every frame — the transcript may live in the Stream player iframe.
+// Must be self-contained (Chrome serializes it).
+function pingFrame() {
+  const entries = document.querySelectorAll('[class*="entryText"]');
+  if (entries.length > 0) return { status: 'ready', count: entries.length };
+  // Multiple signals because SharePoint URL structure and DOM classes vary across tenants/Teams versions
+  const isRecordingPage =
+    location.href.includes('stream.aspx') ||
+    location.href.includes('/personal/') ||
+    document.querySelector('.ms-List') !== null ||
+    document.querySelector('[class*="focusZoneWithAutoScroll"]') !== null;
+  return { status: isRecordingPage ? 'no-transcript' : 'wrong-page' };
+}
+
 async function init() {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    const response = await chrome.tabs.sendMessage(tab.id, { action: 'ping' });
+    const frames = (await chrome.scripting.executeScript({
+      target: { tabId: tab.id, allFrames: true },
+      func: pingFrame,
+    })).map(r => r?.result).filter(Boolean);
+
+    // Best news from any frame wins
+    const response =
+      frames.find(f => f.status === 'ready') ||
+      frames.find(f => f.status === 'no-transcript') ||
+      frames[0] || { status: 'wrong-page' };
 
     if (response.status === 'ready') {
       const countNote = response.count ? ` · ${response.count} visible` : '';
@@ -149,7 +172,7 @@ async function init() {
       copyBtn.disabled = true;
     }
   } catch {
-    // Content script not injected — not on a matching page
+    // No injection permission — not on a matching page
     setStatus('error', 'Not on a Teams recording page.');
     exportBtn.disabled = true;
     copyBtn.disabled = true;
