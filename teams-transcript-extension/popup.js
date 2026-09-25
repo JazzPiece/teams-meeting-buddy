@@ -143,6 +143,14 @@ exportBtn.addEventListener('click', async () => {
 function pingFrame() {
   const entries = document.querySelectorAll('[class*="entryText"]');
   if (entries.length > 0) return { status: 'ready', count: entries.length };
+  // Transcript tab exists but another tab (e.g. Copilot) is showing — background clicks it on export.
+  // Same matcher as clickTranscriptTab() in background.js.
+  const LABEL = /transcri|transkri|trascri/i;
+  const hasTranscriptTab = [...document.querySelectorAll('[role="tab"]')].some(el => {
+    const label = `${el.getAttribute('aria-label') || ''} ${el.textContent || ''}`.trim();
+    return label.length < 60 && LABEL.test(label) && el.getAttribute('aria-disabled') !== 'true';
+  });
+  if (hasTranscriptTab) return { status: 'tab-closed' };
   // Multiple signals because SharePoint URL structure and DOM classes vary across tenants/Teams versions
   const isRecordingPage =
     location.href.includes('stream.aspx') ||
@@ -163,12 +171,17 @@ async function init() {
     // Best news from any frame wins
     const response =
       frames.find(f => f.status === 'ready') ||
+      frames.find(f => f.status === 'tab-closed') ||
       frames.find(f => f.status === 'no-transcript') ||
       frames[0] || { status: 'wrong-page' };
 
     if (response.status === 'ready') {
       const countNote = response.count ? ` · ${response.count} visible` : '';
       setStatus('ready', `Transcript ready${countNote}. Click Export to load all.`);
+      exportBtn.disabled = false;
+      copyBtn.disabled = false;
+    } else if (response.status === 'tab-closed') {
+      setStatus('ready', 'Transcript tab found. Export will open it automatically.');
       exportBtn.disabled = false;
       copyBtn.disabled = false;
     } else if (response.status === 'no-transcript') {

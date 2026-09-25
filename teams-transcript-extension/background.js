@@ -30,6 +30,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 // Scrolls + extracts across every frame. On Stream recording pages the transcript
 // renders inside the player's #xplatIframe, so top-frame-only injection finds nothing.
 async function loadAndExtract(tabId) {
+  await openTranscriptTab(tabId);
+
   sendToPopup({ type: 'status', message: 'Scrolling to load all entries…' });
   // Soft timeout — if scroll hangs we still attempt extraction with whatever is loaded
   await Promise.race([
@@ -48,6 +50,48 @@ async function loadAndExtract(tabId) {
     .map(r => r?.result)
     .filter(items => items && items.length)
     .sort((a, b) => b.length - a.length)[0] || null;
+}
+
+// With a Copilot license the recap side panel opens on the Copilot tab, so the
+// transcript isn't rendered. Click the Transcript tab, then wait for entries —
+// they may appear in a different frame than the tab (Recap iframe).
+async function openTranscriptTab(tabId) {
+  try {
+    const clicks = await chrome.scripting.executeScript({ target: { tabId, allFrames: true }, func: clickTranscriptTab });
+    if (!clicks.some(r => r?.result === 'clicked')) return;
+
+    sendToPopup({ type: 'status', message: 'Opening transcript tab…' });
+    for (let i = 0; i < 20; i++) {
+      await new Promise(r => setTimeout(r, 400));
+      const counts = await chrome.scripting.executeScript({
+        target: { tabId, allFrames: true },
+        func: () => document.querySelectorAll('[class*="entryText"]').length,
+      });
+      if (counts.some(r => r?.result > 0)) {
+        await new Promise(r => setTimeout(r, 500));   // let the list finish its first render
+        return;
+      }
+    }
+  } catch {
+    // Fall through — extraction reports the usual "open the transcript panel" error
+  }
+}
+
+// Runs in each frame — must be self-contained (Chrome serializes it).
+// Duplicated as findTranscriptTab() in popup.js pingFrame().
+function clickTranscriptTab() {
+  if (document.querySelector('[class*="entryText"]')) return 'present';
+  // role="tab" only — never click "Download transcript" or similar buttons.
+  // Label regex covers English plus common localizations (Transkript, Transcription, Trascrizione, Transcripción…)
+  const LABEL = /transcri|transkri|trascri/i;
+  const tab = [...document.querySelectorAll('[role="tab"]')].find(el => {
+    if (el.getAttribute('aria-selected') === 'true' || el.getAttribute('aria-disabled') === 'true') return false;
+    const label = `${el.getAttribute('aria-label') || ''} ${el.textContent || ''}`.trim();
+    return label.length < 60 && LABEL.test(label);
+  });
+  if (!tab) return 'not-found';
+  tab.click();
+  return 'clicked';
 }
 
 async function handleScrape(tabId, format, merge, datedFilenames) {
