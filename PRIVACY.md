@@ -30,6 +30,7 @@ When you click Export (or press Alt+Shift+T), the extension reads the transcript
 | `https://*.sharepoint.com/*` | Access Teams recording pages hosted on SharePoint |
 | `https://teams.microsoft.com/*` | Access Teams recording pages on teams.microsoft.com |
 | `https://*.teams.microsoft.com/*` | Access Teams recording pages on subdomain variants |
+| `https://teams.cloud.microsoft/*` | Access Teams recap pages on the new Teams web domain |
 
 ## Remote Code
 

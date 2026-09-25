@@ -67,27 +67,48 @@ async function handleScrape(tabId, format, merge) {
     const extMap = { vtt: 'vtt', srt: 'srt', docx: 'docx', compact: 'txt' };
     const filename = buildFilename(tab.title || '', extMap[format] || format);
 
-    // Download using a data URL — works from service worker without blob/URL APIs
-    let dataUrl;
     if (format === 'docx') {
-      const bytes  = buildDocx(items);
-      let binary   = '';
-      for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-      dataUrl = 'data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,' + btoa(binary);
+      await downloadPayload(buildDocx(items), 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', filename);
     } else if (format === 'srt') {
-      dataUrl = 'data:text/srt;charset=utf-8,' + encodeURIComponent(buildSrt(items));
+      await downloadPayload(buildSrt(items), 'text/srt;charset=utf-8', filename);
     } else if (format === 'compact') {
-      dataUrl = 'data:text/plain;charset=utf-8,' + encodeURIComponent(buildCompact(items));
+      await downloadPayload(buildCompact(items), 'text/plain;charset=utf-8', filename);
     } else {
-      dataUrl = 'data:text/vtt;charset=utf-8,' + encodeURIComponent(buildVtt(items));
+      await downloadPayload(buildVtt(items), 'text/vtt;charset=utf-8', filename);
     }
-    await chrome.downloads.download({ url: dataUrl, filename, saveAs: false });
 
     sendToPopup({ type: 'done', filename, count: items.length });
 
   } catch (err) {
-    sendToPopup({ type: 'error', message: err.message || 'Unknown error during export.' });
+    sendToPopup({ type: 'error', message: safeErrorMessage(err, 'Unknown error during export.') });
   }
+}
+
+// Firefox (event page) has URL.createObjectURL and rejects large data: URLs;
+// Chrome's service worker has no createObjectURL, so fall back to base64 data: URL.
+async function downloadPayload(payload, mimeType, filename) {
+  if (typeof URL.createObjectURL === 'function') {
+    const objectUrl = URL.createObjectURL(new Blob([payload], { type: mimeType }));
+    try {
+      return await chrome.downloads.download({ url: objectUrl, filename, saveAs: false });
+    } finally {
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
+    }
+  }
+
+  const bytes = typeof payload === 'string' ? new TextEncoder().encode(payload) : payload;
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  }
+  return chrome.downloads.download({ url: `data:${mimeType};base64,${btoa(binary)}`, filename, saveAs: false });
+}
+
+// Browser download errors can echo the full data: URL — i.e. the transcript — back to us
+function safeErrorMessage(err, fallback) {
+  const message = typeof err?.message === 'string' ? err.message.trim() : '';
+  if (!message || message.length > 300 || /(data|blob):/i.test(message)) return fallback;
+  return message;
 }
 
 // ── Copy ──────────────────────────────────────────────────────────────────────
@@ -102,7 +123,7 @@ async function handleCopy(tabId, merge) {
     if (merge) items = mergeCues(items);
     sendToPopup({ type: 'copyReady', text: buildPlainText(items), count: items.length });
   } catch (err) {
-    sendToPopup({ type: 'error', message: err.message || 'Unknown error during copy.' });
+    sendToPopup({ type: 'error', message: safeErrorMessage(err, 'Unknown error during copy.') });
   }
 }
 
