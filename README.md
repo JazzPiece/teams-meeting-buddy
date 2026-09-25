@@ -54,7 +54,6 @@ The extension reads transcript data directly from React's in-memory state, bypas
 teams-transcript-extension/   # Extension source
 ├── manifest.json             # MV3 manifest
 ├── background.js             # Service worker — fiber extraction + download
-├── content.js                # Content script — transcript panel detection
 ├── popup.html                # Toolbar popup UI
 ├── popup.js                  # Popup logic
 ├── styles/popup.css          # Popup styling
