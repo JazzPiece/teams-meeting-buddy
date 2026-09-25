@@ -474,8 +474,11 @@ function formatMeetingDate(dateText, fallbackTitle, fallbackDate) {
 
   const months = ['january', 'february', 'march', 'april', 'may', 'june',
     'july', 'august', 'september', 'october', 'november', 'december'];
-  const written = source.match(/\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2}),\s+(20\d{2})\b/i);
-  if (written) return `${written[3]}${pad(months.indexOf(written[1].toLowerCase()) + 1)}${pad(written[2])}`;
+  const monthNames = 'January|February|March|April|May|June|July|August|September|October|November|December';
+  const monthFirst = source.match(new RegExp(`\\b(${monthNames})\\s+(\\d{1,2}),?\\s+(20\\d{2})\\b`, 'i'));   // US: September 15, 2026
+  if (monthFirst) return `${monthFirst[3]}${pad(months.indexOf(monthFirst[1].toLowerCase()) + 1)}${pad(monthFirst[2])}`;
+  const dayFirst = source.match(new RegExp(`\\b(\\d{1,2})\\s+(${monthNames}),?\\s+(20\\d{2})\\b`, 'i'));     // UK/EU: 15 September 2026
+  if (dayFirst) return `${dayFirst[3]}${pad(months.indexOf(dayFirst[2].toLowerCase()) + 1)}${pad(dayFirst[1])}`;
 
   return `${fallbackDate.getFullYear()}${pad(fallbackDate.getMonth() + 1)}${pad(fallbackDate.getDate())}`;
 }
